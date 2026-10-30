@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "duration_ns": 600000000,
+  "seed": 42,
+  "commands": [
+    {"at_ns": 0, "kind": "set_throttle", "percent": 50},
+    {"at_ns": 100000000, "kind": "set_engine_publishing", "enabled": false},
+    {"at_ns": 400000000, "kind": "set_engine_publishing", "enabled": true}
+  ]
+}

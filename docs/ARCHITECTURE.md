@@ -1,16 +1,16 @@
-# Architecture — M1 headless simulator
+# Architecture — M2 headless laboratory
 
-Status: M1 implements the clock, physical model, sensor boundary, Engine ECU,
-immutable frames, virtual CAN delivery, KOMBI decoding, and CLI. Fault injection,
-STALE/TIMEOUT timers and recording/replay remain M2 contracts. API/UI and ML are
-not implemented.
+Status: M2 adds publication-only Offline, independent freshness timers, controlled
+fixed delay/seeded loss, bounded JSON scenarios and streaming trace recording,
+verified playback and deterministic rerun. M1's clock, sensor boundary and
+CAN-only KOMBI inputs remain intact. API/UI, ML and extended faults are not implemented.
 
 ## One process, explicit ownership
 
 The headless simulator runs in one Python process. SimulationClock owns virtual
 time and the event queue. VehicleModel owns physical state. The CAN transport
 does not own either one. No services, hardware, ML, or frontend are required by
-M0.
+the headless milestones.
 
 ```text
 DriverInput -> VehicleModel -> EngineSensorPort -> Engine ECU
@@ -64,15 +64,16 @@ before implementation.
   channel and bounded queues. Keep canonical integer times outside python-can's
   floating timestamp. Set `preserve_timestamps=True`; drain transport under
   core control. Queue overflow is a visible run error, not a simulated fault.
-- **KOMBI**: decode only its received observations. M1 rejects malformed
+- **KOMBI**: decode only its received observations. The receiver rejects malformed
   DLC/payload and out-of-range RPM without refreshing the last valid observation.
-  Independently scheduled freshness deadlines are added in M2.
+  The injected virtual clock schedules freshness checks independently of frames.
+  Old deadlines check the current last valid reception before changing status.
 - **Recorder (M2)**: stream frames, per-receiver deliveries, commands, and status
   changes; record fault ground truth separately. Preserve an explicit failure
   status if recording cannot continue.
 
 Implemented modules are `clock`, `vehicle`, `events`, `ecu`, `bus`, `simulation`,
-and `cli` under `backend/autocan`. Simulation composes these through a narrow
+`scenarios`, `validation`, `traces` and `cli` under `backend/autocan`. Simulation composes these through a narrow
 RPM sensor port and a BusAdapter protocol. Tests use actual VirtualBus transport
 without hardware, wall-clock delays, or threads. Clock and physical-model tests
 need no I/O. Public behavior follows [DATA_CONTRACTS.md](DATA_CONTRACTS.md).
@@ -94,16 +95,27 @@ changes pacing, not physics or event order. Transport threads/Notifier and
 `sleep` cannot drive virtual timers. At equal virtual time, delivery precedes
 freshness checks, including a frame arriving exactly at a deadline.
 
-M2 will separate playback (display saved events) from rerun (recompute from the
+M2 separates playback (display saved events) from rerun (recompute from the
 manifest and command log). Neither a shared seed alone nor successful playback
 proves deterministic simulation. Physical/scenario/fault RNG streams are
 independent and their derivation must be recorded. In the first slice no CAN
 feedback changes the physical trajectory, so changing message loss must not
 change physics. Event comparison excludes run IDs and wall-clock metadata.
 
+Only delivery loss currently draws random values. Physics and scenario stream
+seeds are independently derived and reserved; unused randomness is not invented
+to make the seed meaningful. The raw VirtualBus carries frames FIFO; M2 supports
+fixed delay, not per-frame jitter/reordering.
+
+The recorder has three disjoint event streams with a single global `event_seq`.
+Playback merges them in sequence after validating the whole recording. The
+future feature pipeline must use the selected receiver's observations, excluding
+commands and fault truth. Rerun submits recorded applied commands in time groups,
+then advances the core, avoiding an unbounded queue of future commands.
+
 ## Later stages
 
-M1 provides the headless chain. M2 adds offline fault, timers, JSONL, and
+M1 provides the headless chain; M2 implements offline fault, timers, JSONL and
 rerun. M3 adds API/UI. Parquet/SQLite and ML remain later milestones. The future
 detector may read only past observations, must tick on an empty stream, and
 must be evaluated on both unseen faults and unfamiliar normal driving regimes.

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "duration_ns": 1000000000,
+  "seed": 42,
+  "transport": {"delay_ns": 0, "drop_probability": 0},
+  "commands": [
+    {"at_ns": 0, "kind": "set_throttle", "percent": 50},
+    {"at_ns": 600000000, "kind": "set_throttle", "percent": 0}
+  ]
+}

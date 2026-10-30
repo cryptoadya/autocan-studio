@@ -2,8 +2,8 @@
 
 M0 implements and tests the DBC section. M1 implements the clock, throttle/RPM
 model, frames, per-receiver delivery, applied throttle commands, and event
-envelope. Offline commands, freshness deadlines and recording/rerun belong to
-M2. Schema version is `1`; profile version is
+envelope. M2 implements Offline, freshness deadlines and recording/rerun.
+Schema version is `1`; profile version is
 `democar-0.1.0`. Times are nonnegative integer nanoseconds, never floats.
 
 ## Initial conditions and timing
@@ -36,7 +36,10 @@ The M1 model uses `target = idle + (maximum - idle) * throttle / 100` and moves
 toward it by at most `slew * delta_ns / 1e9` per physics tick, without overshoot.
 The engine remains physically running; engine start/stop is a later control.
 The model is noise-free. Seed is accepted and reported, but no random stream is
-consumed until a feature actually needs randomness.
+consumed by physics. M2 uses `sha256("autocan-rng-v1:{seed}:{stream}")` to derive
+independent `physics`, `scenario` and `delivery` seeds. Only delivery loss uses
+Python Random, seeded with its derived integer. Fixed delay draws no randomness;
+the initial seeds and derivation algorithm are stored in each manifest.
 
 ## Stable scheduling and commands
 
@@ -65,12 +68,12 @@ use [start, end), with enable/disable applied in the command phase. Invalid
 commands fail visibly without modifying simulation state. Duplicate commands
 at the same time use their logged order.
 
-M1 implements only `set_throttle`. Explicit application times must align with
+The runtime supports `set_throttle` and `set_engine_publishing`. Explicit application times must align with
 the 10 ms physics grid; past or already completed earlier phases are rejected.
 If no time is specified, the core chooses the next valid input boundary and
 returns it. This prevents a mid-tick command from rewriting part of the already
-integrated physical interval. M1 exposes applied commands as events to an
-optional observer; a persisted command log is an M2 feature.
+integrated physical interval. Applied commands are events to an optional observer;
+M2 persists them separately from frame observations.
 
 The event queue is bounded (1024 pending events by default). Callback failures
 stop advancement until reset; reentrant advancement is rejected. Pause does
@@ -172,7 +175,7 @@ data for later fault scenarios. Raw corruption is a separate mechanism.
 | 3000 | 12000 | e02e |
 | 8000 | 32000 | 007d |
 
-## Reproduction contract (M2)
+## Reproduction contract (implemented in M2)
 
 A manifest records schema/profile/core versions, package versions, git commit
 when available, DBC/config hashes, initial physical/ECU state, seed/RNG stream
@@ -185,3 +188,55 @@ compares canonical virtual times, order, frames, deliveries, and state changes.
 Exclude new run IDs and wall-clock timestamps; preserve all behaviorally
 relevant fields. Artifact checksums check bytes; semantic hashes check canonical
 content. Future transport and physics randomness use independent streams.
+
+### Scenario and transport bounds
+
+Scenarios use JSON schema version 1: `duration_ns`, optional nonnegative `seed`,
+`commands`, and optional `transport` (`delay_ns`, `drop_probability` in [0, 1]).
+Each command has `at_ns`, `kind`, and either `percent` or boolean `enabled`.
+Unknown fields/kinds, nonfinite values, booleans used as integers, duplicate JSON
+keys, commands after the end time and non-grid command times are rejected.
+Scenario files are capped at 64 KiB / 256 commands. No executable expressions.
+
+Offline emits InputApplied and FaultActivated; enable emits FaultCleared for
+the same deterministic fault ID. Repeated identical enable/disable commands are
+logged without restarting a fault interval. An active interval at run end is
+bounded by manifest `end_time_ns`, without pretending it was explicitly cleared.
+Default receipt delay is zero; configured delay is fixed and applies to every
+nondropped frame. A drop produces FrameDropped ground truth after FramePublished.
+The bus holds at most 256 pending frames per receiver. The importer permits one
+additional provisional publication while determining whether it was dropped.
+
+### Run directory, integrity and lifecycle
+
+Format version 1 contains `events.jsonl`, `commands.jsonl`, `faults.jsonl`,
+`profile.dbc`, and `manifest.json`. The first three streams partition canonical
+events: InputApplied goes to commands, FaultActivated/FaultCleared/FrameDropped
+to faults, and frame/delivery/status events to events. Sequences are increasing
+per file and contiguous after merging; event time is monotonic. Each receiver
+delivery/drop references an already published frame. Data is streamed with
+bounded pending-reference validation, rather than loading a whole run in RAM.
+
+The manifest records format/schema/core/profile versions, core source hash,
+profile snapshot hash, exact runtime package/Python versions, Git commit/dirty
+state when available, configuration including RNG derivation, initial/final
+state, virtual end time, per-artifact bytes/count/checksum and the semantic hash.
+The configuration checksum also covers initial state. Artifact checksums cover
+file bytes; semantic hashing uses sorted compact JSON plus newline, omitting
+only run identity. Global event order includes commands and fault markers.
+
+Directory creation is exclusive. Manifest status begins `recording`, becomes
+`complete` only after finalization, and becomes `failed` on a caught recording
+failure. A process interruption leaves `recording`, which is rejected as
+incomplete. The recorder checks run identity/event count to reject reset during
+a recording; existing runs are never overwritten. Artifact bytes are capped at
+16 MiB (configurable downward); manifest/JSONL line caps are 64 KiB. Import uses
+fixed artifact names, rejects symlinks and validates sizes, checksums, schema,
+ordering and semantic hash before playback yields any events.
+
+Playback does not instantiate Simulation and tolerates a different current core.
+Rerun requires matching core/profile hashes and runtime versions, replays the
+applied command stream without the original scenario, and compares regenerated
+canonical event hash and final state. Final pause state is restored without
+introducing wall-clock input. Ending with delayed frames still in flight is
+valid: their scheduled future receptions are outside that recorded time range.

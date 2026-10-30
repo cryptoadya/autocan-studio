@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — M2 faults and reproducible traces
+
+- Add publication-only Engine ECU Offline/Online and virtual KOMBI freshness
+  deadlines that work while the bus is silent.
+- Add fixed delay and independently seeded message loss for transport checks.
+- Add bounded declarative JSON scenarios and original normal/offline examples.
+- Stream frames/status, applied commands and fault truth into separate JSONL
+  files with profile snapshot, provenance manifest and integrity/semantic hashes.
+- Add `autocan run`, verified `playback`, and fresh-simulation `rerun`; reject
+  overwrites, incomplete/corrupt runs, quota overruns and incompatible reruns.
+- Preserve M1 headless controls; API/UI, Parquet and ML remain later milestones.
+
 ## Unreleased — M1 headless simulator
 
 - Add integer virtual time with stable event phases and pause/step/reset controls.
