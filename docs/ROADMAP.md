@@ -44,3 +44,18 @@ headless runtime while preserving the DBC contract and M0 checks.
   canonical events after excluding run identity; no wall-clock delays are used.
 - CLI supports finite exact durations, JSON state/events and shell controls.
 - ECU Offline, STALE/TIMEOUT, persisted traces and replay remain M2; UI remains M3.
+
+## M2 acceptance boundary
+
+- Offline suppresses publication while physical RPM continues; pending deliveries
+  survive Offline and re-enable resumes on the original publication grid.
+- KOMBI reaches STALE at last receipt +60 ms and TIMEOUT at +200 ms on a silent
+  bus, ignores old deadlines and accepts a delivery exactly at a deadline first.
+- Fixed delivery delay and seeded loss reproduce independently of physical RPM.
+- Bounded JSON scenarios run through CLI; commands and fault ground truth are
+  separate files in a streaming JSONL recording with a provenance manifest.
+- Save/load/playback preserves canonical events. Rerun reconstructs them from
+  the applied command log and compares semantic hash and final state.
+- Recording never overwrites a run; quota/failure/incomplete/corrupt/incompatible
+  inputs are rejected explicitly. Existing M0/M1 checks remain applicable.
+- M3 API/UI, Parquet/dataset factory, extended faults and ML are not implemented.

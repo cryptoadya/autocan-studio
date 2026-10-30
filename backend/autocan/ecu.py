@@ -1,11 +1,13 @@
 """Two independent ECU roles: a permitted RPM sensor and a CAN-only receiver."""
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
 from cantools.database.errors import DecodeError
 
+from autocan.clock import Phase, SimulationClock
 from autocan.dbc import load_democar_database
 from autocan.events import CanFrame, CanObservation
 
@@ -39,13 +41,20 @@ class EngineEcu:
 class KombiState:
     rpm: float | None = None
     last_received_ns: int | None = None
-    status: Literal["UNAVAILABLE", "FRESH"] = "UNAVAILABLE"
+    status: Literal["UNAVAILABLE", "FRESH", "STALE", "TIMEOUT"] = "UNAVAILABLE"
 
 
 class Kombi:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        clock: SimulationClock | None = None,
+        on_status: Callable[[KombiState], None] | None = None,
+    ) -> None:
         self._message = load_democar_database().get_message_by_name("EngineStatus")
         self._state = KombiState()
+        self._clock = clock
+        self._on_status = on_status
 
     @property
     def state(self) -> KombiState:
@@ -54,6 +63,8 @@ class Kombi:
     def receive(self, observation: CanObservation) -> bool:
         if observation.channel != "democar" or observation.can_id != self._message.frame_id:
             return False
+        if self._clock is not None and observation.received_at_ns != self._clock.now_ns:
+            raise ValueError("receive time must match the virtual clock")
         if (
             self._state.last_received_ns is not None
             and observation.received_at_ns < self._state.last_received_ns
@@ -68,5 +79,24 @@ class Kombi:
         rpm = signals["EngineRpm"]
         if not isinstance(rpm, (int, float)) or not math.isfinite(rpm) or not 0 <= rpm <= 8000:
             raise ValueError("received RPM is outside the profile range")
-        self._state = KombiState(float(rpm), observation.received_at_ns, "FRESH")
+        self._update(KombiState(float(rpm), observation.received_at_ns, "FRESH"))
+        if self._clock is not None:
+            received = observation.received_at_ns
+
+            def check() -> None:
+                if self._state.last_received_ns != received:
+                    return
+                assert self._clock is not None
+                age = self._clock.now_ns - received
+                status: Literal["STALE", "TIMEOUT"] = "TIMEOUT" if age >= 200_000_000 else "STALE"
+                self._update(KombiState(self._state.rpm, received, status))
+
+            self._clock.schedule(received + 60_000_000, Phase.DEADLINE, check)
+            self._clock.schedule(received + 200_000_000, Phase.DEADLINE, check)
         return True
+
+    def _update(self, state: KombiState) -> None:
+        previous = self._state.status
+        self._state = state
+        if previous != state.status and self._on_status is not None:
+            self._on_status(state)

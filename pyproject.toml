@@ -28,6 +28,7 @@ include = [
   "/backend",
   "/tests",
   "/docs",
+  "/scenarios",
   "/.github",
   "/.gitignore",
   "/.python-version",
