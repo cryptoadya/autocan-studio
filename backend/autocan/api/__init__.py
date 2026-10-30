@@ -69,6 +69,8 @@ class CreateSimulation(BaseModel):
 class Inputs(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     throttle: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
+    brake: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
+    gear: Literal["P", "R", "N", "D"] | None = None
     ignition: Literal["OFF", "ACC", "ON", "START"] | None = None
     engine_running: bool | None = None
 
@@ -164,7 +166,11 @@ def create_app(*, data_root: Path = Path("data/runs"), static_root: Path | None 
     async def inputs(identifier: str, spec: Inputs) -> dict[str, int]:
         return {
             "applied_at_ns": current(identifier).inputs(
-                spec.throttle, ignition=spec.ignition, engine_running=spec.engine_running
+                spec.throttle,
+                brake=spec.brake,
+                gear=spec.gear,
+                ignition=spec.ignition,
+                engine_running=spec.engine_running,
             )
         }
 

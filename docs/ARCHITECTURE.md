@@ -4,7 +4,8 @@ Status: M3 adds a local FastAPI REST/WebSocket boundary and a React/TypeScript/V
 dashboard over M2's headless core, trace recorder and rerun contracts. The core,
 sensor isolation, CAN delivery and virtual deadlines remain unchanged. Extended
 faults, additional ECU, datasets and ML remain later milestones. The first M5
-pass adds physical engine/ignition controls over this same chain.
+pass adds physical engine/ignition controls over this same chain. Motion controls
+extend VehicleModel with longitudinal speed, brake and physical gear interlocks.
 
 ## One process, explicit ownership
 
@@ -42,14 +43,22 @@ Brake/gear/speed and the additional ECU network remain subsequent M5 work.
 
 | Component | Allowed inputs | Owned output/state |
 | --- | --- | --- |
-| DriverInput | Validated user/scenario commands applied by core | Requested throttle, ignition, physical Start/Stop |
-| VehicleModel | DriverInput, fixed physics ticks, its initial state | Physical RPM, ignition and engine-running state |
+| DriverInput | Validated user/scenario commands applied by core | Requested throttle, brake, gear, ignition, physical Start/Stop |
+| VehicleModel | DriverInput, fixed physics ticks, its initial state | Physical RPM/speed, actual gear, ignition and engine-running state |
 | EngineSensorPort | Read-only access to the explicitly allowed RPM sensor | RPM observation for Engine ECU |
 | Engine ECU | EngineSensorPort, publication ticks | Encoded EngineStatus frames |
 | BusAdapter | Published frame and core-scheduled receiver delivery | Transport result; no physical state |
 | KOMBI | Its received CAN observations, virtual timer callbacks | Last decoded RPM and freshness |
 | UI | KOMBI state and explicitly selected CAN observer stream | Display only |
 | Future detector | Its own observation stream, causal windows | Score and alerts |
+
+The motion panel is a separate model-telemetry display. PhysicalMotionUpdated
+events record signed model speed for playback; they are not CAN observations,
+do not refresh KOMBI and must not be treated as future detector input. Gear
+requests are validated at their application time against physical speed/brake;
+a rejected request is recorded with its reason rather than raising a clock
+callback error. Actual physical gear remains owned by VehicleModel. The separate
+Transmission/ABS/Body ECU network remains future M5 work.
 
 Components must receive narrow interfaces rather than the entire simulator or
 VehicleModel. Engine ECU may read RPM through its sensor port. KOMBI cannot

@@ -10,7 +10,7 @@ from autocan.events import RunEvent, Scalar
 from autocan.simulation import Simulation
 from autocan.traces import TraceRecorder, playback, verify_trace
 from autocan.validation import integer
-from autocan.vehicle import validate_ignition, validate_throttle
+from autocan.vehicle import validate_brake, validate_gear, validate_ignition, validate_throttle
 
 TICK_NS = 50_000_000
 MAX_DURATION_NS = 120_000_000_000
@@ -34,6 +34,10 @@ class ObservationView:
             "kombi_status": "UNAVAILABLE",
             "last_received_ns": None,
             "throttle_percent": 0,
+            "brake_percent": 0,
+            "gear": "P",
+            "shift_rejection": None,
+            "physical_speed_kph": 0,
             "engine_running": True,
             "ignition_state": "ON",
             "engine_publishing": True,
@@ -68,9 +72,17 @@ class ObservationView:
             self.state["deliveries"] = int(self.state["deliveries"] or 0) + 1
         elif kind == "EcuStatusChanged":
             self.state["kombi_status"] = event["status"]
+        elif kind == "PhysicalMotionUpdated":
+            self.state["physical_speed_kph"] = event["physical_speed_kph"]
         elif kind == "InputApplied":
             if event["command_kind"] == "set_throttle":
                 self.state["throttle_percent"] = event["percent"]
+            elif event["command_kind"] == "set_brake":
+                self.state["brake_percent"] = event["percent"]
+            elif event["command_kind"] == "set_gear":
+                if event["accepted"]:
+                    self.state["gear"] = event["gear"]
+                self.state["shift_rejection"] = event["reason"]
             elif event["command_kind"] == "set_engine_publishing":
                 self.state["engine_publishing"] = event["enabled"]
             elif event["command_kind"] == "set_engine_running":
@@ -138,14 +150,22 @@ class Session:
         self,
         throttle: float | None = None,
         *,
+        brake: float | None = None,
+        gear: str | None = None,
         ignition: str | None = None,
         engine_running: bool | None = None,
     ) -> int:
-        count = sum(value is not None for value in (throttle, ignition, engine_running))
+        count = sum(
+            value is not None for value in (throttle, brake, gear, ignition, engine_running)
+        )
         if not count:
             raise ValueError("at least one input is required")
         if throttle is not None:
             validate_throttle(throttle)
+        if brake is not None:
+            validate_brake(brake)
+        if gear is not None:
+            validate_gear(gear)
         if ignition is not None:
             validate_ignition(ignition)
         if engine_running is not None and type(engine_running) is not bool:
@@ -155,6 +175,10 @@ class Session:
         applied = 0
         if throttle is not None:
             applied = self.sim.set_throttle(throttle)
+        if brake is not None:
+            applied = self.sim.set_brake(brake)
+        if gear is not None:
+            applied = self.sim.set_gear(gear)
         if ignition is not None:
             applied = self.sim.set_ignition(ignition)
         if engine_running is not None:

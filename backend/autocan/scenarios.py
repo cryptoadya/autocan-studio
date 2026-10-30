@@ -5,15 +5,17 @@ from pathlib import Path
 
 from autocan.simulation import PHYSICS_TICK_NS, Simulation
 from autocan.validation import fields, integer, json_object, number, object_value
-from autocan.vehicle import validate_ignition
+from autocan.vehicle import validate_gear, validate_ignition
 
 MAX_SCENARIO_BYTES = 64 * 1024
 MAX_COMMANDS = 256
 
 
 def command_parameter(kind: object) -> str:
-    if kind == "set_throttle":
+    if kind in ("set_throttle", "set_brake"):
         return "percent"
+    if kind == "set_gear":
+        return "gear"
     if kind == "set_ignition":
         return "state"
     if kind in ("set_engine_publishing", "set_engine_running"):
@@ -33,7 +35,7 @@ class ScenarioCommand:
         at = integer(data.get("at_ns"), "at_ns")
         if at % PHYSICS_TICK_NS:
             raise ValueError("command time must align with the physics grid")
-        if kind == "set_throttle":
+        if kind in ("set_throttle", "set_brake"):
             fields(data, {"at_ns", "kind", "percent"})
             value: float | bool | str = number(data["percent"], "percent", minimum=0, maximum=100)
         elif kind in ("set_engine_publishing", "set_engine_running"):
@@ -49,6 +51,13 @@ class ScenarioCommand:
                 raise ValueError("ignition must be a string")
             validate_ignition(state)
             value = state
+        elif kind == "set_gear":
+            fields(data, {"at_ns", "kind", "gear"})
+            gear = data["gear"]
+            if not isinstance(gear, str):
+                raise ValueError("gear must be a string")
+            validate_gear(gear)
+            value = gear
         else:
             raise ValueError("unsupported command kind")
         return cls(at, kind, value)
@@ -57,6 +66,10 @@ class ScenarioCommand:
         # Revalidate even programmatically constructed scenarios.
         if self.kind == "set_throttle" and not isinstance(self.value, (bool, str)):
             sim.set_throttle(self.value, at_ns=self.at_ns)
+        elif self.kind == "set_brake" and not isinstance(self.value, (bool, str)):
+            sim.set_brake(self.value, at_ns=self.at_ns)
+        elif self.kind == "set_gear" and isinstance(self.value, str):
+            sim.set_gear(self.value, at_ns=self.at_ns)
         elif self.kind == "set_engine_publishing" and type(self.value) is bool:
             sim.set_engine_publishing(self.value, at_ns=self.at_ns)
         elif self.kind == "set_engine_running" and type(self.value) is bool:

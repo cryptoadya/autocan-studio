@@ -18,7 +18,7 @@ from autocan.scenarios import MAX_COMMANDS, Scenario, ScenarioCommand, command_p
 from autocan.simulation import Simulation
 from autocan.validation import canonical_bytes, fields, integer, json_object, number, object_value
 
-CORE_VERSION = "m5-engine-controls-1"
+CORE_VERSION = "m5-motion-1"
 DEFAULT_MAX_BYTES = 16 * 1024 * 1024
 MAX_MANIFEST_BYTES = 64 * 1024
 MAX_LINE_BYTES = 64 * 1024
@@ -429,13 +429,32 @@ def _validate_event(record: dict[str, object], meta: dict[str, object]) -> None:
     elif kind == "InputApplied":
         command_kind = record.get("command_kind")
         parameter = command_parameter(command_kind)
-        fields(record, base | {"command_seq", "applied_at_ns", "command_kind", parameter})
+        result_fields = {"accepted", "reason"} if command_kind == "set_gear" else set()
+        fields(
+            record,
+            base | {"command_seq", "applied_at_ns", "command_kind", parameter} | result_fields,
+        )
+        if command_kind == "set_gear":
+            accepted, reason = record["accepted"], record["reason"]
+            if type(accepted) is not bool or (
+                (accepted and reason is not None)
+                or (not accepted and reason not in ("vehicle_moving", "brake_required"))
+            ):
+                raise TraceError("invalid gear request result")
         integer(record["command_seq"], "command_seq", minimum=1)
         if integer(record["applied_at_ns"], "applied time") != now:
             raise TraceError("command time mismatch")
         ScenarioCommand.from_dict(
             {"at_ns": now, "kind": command_kind, parameter: record[parameter]}
         )
+    elif kind == "PhysicalMotionUpdated":
+        fields(record, base | {"physical_speed_kph"})
+        motion = object_value(
+            object_value(meta["configuration"], "configuration").get("motion"), "motion"
+        )
+        forward = number(motion.get("max_forward_kph"), "forward limit", minimum=0, maximum=300)
+        reverse = number(motion.get("max_reverse_kph"), "reverse limit", minimum=0, maximum=60)
+        number(record["physical_speed_kph"], "physical speed", minimum=-reverse, maximum=forward)
     elif kind == "EcuStatusChanged":
         fields(record, base | {"ecu_id", "status"})
         if record["ecu_id"] != "KOMBI" or _text(record["status"], "ECU status") not in {
