@@ -240,3 +240,53 @@ applied command stream without the original scenario, and compares regenerated
 canonical event hash and final state. Final pause state is restored without
 introducing wall-clock input. Ending with delayed frames still in flight is
 valid: their scheduled future receptions are outside that recorded time range.
+
+## M3 local API and live display
+
+The recording schema/core/profile versions are unchanged. API/WS display schema
+version is `1`. The API exposes only DemoCar, throttle and the Offline publication
+fault; brake, ignition, gear, ML and profile editing are not accepted.
+
+| Endpoint | Behavior |
+| --- | --- |
+| `GET /api/health`, `/api/profiles` | Local readiness and DemoCar identity |
+| `POST /api/simulations` | `{profile_id: "democar", seed: 42}`; fresh paused recording; one active run |
+| `GET /api/simulations/current` | Current snapshot or `null`, for page reload |
+| `GET /api/simulations/{id}/state` | Current display snapshot, excluding physical RPM |
+| `POST /api/simulations/{id}/start`, `/pause`, `/stop`, `/reset` | Resume, pause, finalize, or finalize and allocate a fresh run |
+| `PATCH /api/simulations/{id}/inputs` | `{throttle: 50}`; finite percentage, returns canonical `applied_at_ns` |
+| `POST /api/simulations/{id}/faults` | `{offline: true}`; publication only, returns canonical `applied_at_ns` |
+| `GET /api/runs` | Up to 64 complete, verified server-style UUID recordings |
+| `GET /api/runs/{id}/playback?until_ns=N` | Bounded display snapshot through N (default: recorded end); verified saved events only |
+| `POST /api/runs/{id}/rerun` | Fresh computation using M2 compatibility/integrity checks |
+
+Payloads reject unknown fields, boolean seeds/throttle and non-boolean Offline.
+Inputs are queued, not applied by HTTP receipt; a paused run applies them after
+resume. Stop finalizes only applied commands. A never-started run processes its
+first 10 ms step before saving so the recording contains initial events. Reset
+retains the seed, restores initial conditions and returns a new run identity.
+Saved-run identifiers are UUID hex strings, not filesystem paths. Failed or
+incomplete recordings are omitted from the saved-run selector; they still consume
+local disk capacity and are never deleted automatically.
+
+`/ws/simulations/{id}` sends `snapshot` followed by `frames_batch`, each including
+`schema_version`, `seq`, `sim_time_ns`, `id`, `mode`, `state`, `frames`, `signals`,
+`recording`, `stopped`, `error`, and `skipped_frames`. A snapshot contains the full
+bounded view; subsequent batches contain only newer delivered frames and sampled
+points plus current state. `seq` restarts at 1 per connection, while frame records
+retain their canonical publication `event_seq` and `frame_id`. Frame display time
+is receiver delivery time, not frame creation time. The `rpm` column is decoded
+from the delivered payload. Signals contain virtual time, last received RPM and
+freshness status; stale values are drawn with dashed lines.
+
+There is no per-client event backlog. At most 8 WS clients are allowed; a send
+blocked for 1 s disconnects. A client must replace its view with the reconnect
+snapshot. The server reports any skipped display frame IDs; it does not drop
+canonical recording events. Commands/fault ground truth remain in their separate
+M2 artifacts. A recording quota failure stops the run rather than losing events.
+
+API sessions are limited to 120 virtual seconds, 256 commands and the existing
+16 MiB trace quota. Creation stops at 64 entries under the configured run root.
+HTTP POST/PATCH bodies are capped at 4096 bytes. The source launcher bounds
+concurrent connections to 32 and incoming WS messages/queues to 4096 bytes / 8.
+There is no arbitrary upload, export format, scenario editor or remote API in M3.

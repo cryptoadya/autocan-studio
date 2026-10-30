@@ -21,3 +21,7 @@ htmlcov/
 .env.*
 !.env.example
 .DS_Store
+
+# Frontend dependencies and generated outputs
+node_modules/
+*.tsbuildinfo

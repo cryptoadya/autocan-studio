@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — M3 first working UI
+
+- Add a loopback FastAPI REST/WebSocket API over the deterministic headless core.
+- Add a React/TypeScript/Vite dashboard with received KOMBI RPM/freshness, throttle,
+  Engine ECU Offline, a bounded RPM chart and delivered CAN Monitor.
+- Record complete manual runs from time zero; save/reset, verify playback with
+  seeking and compute deterministic reruns through the existing trace contracts.
+- Restore live state/history through reconnect snapshots; cap memory, connections,
+  request bodies, run duration/count and commands, with explicit recording failures.
+- Add `autocan studio` to build and serve the dashboard locally in one command,
+  frontend lockfile/checks and API/UI tests. M4 release acceptance remains separate.
+
 ## Unreleased — M2 faults and reproducible traces
 
 - Add publication-only Engine ECU Offline/Online and virtual KOMBI freshness

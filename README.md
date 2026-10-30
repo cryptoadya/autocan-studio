@@ -3,13 +3,58 @@
 A local-first, synthetic CAN laboratory with a deterministic simulator and an
 independent anomaly-detection pipeline planned for later milestones.
 
-**Current scope: M2 — offline faults and reproducible traces.** A synthetic throttle/RPM
+**Current scope: M3 — a working local API and dashboard.** A synthetic throttle/RPM
 model publishes EngineStatus through an Engine ECU and an in-process python-can
 adapter. KOMBI decodes its received frames independently of physical state.
-Engine publication can be disabled without stopping physical RPM. Independent
-virtual timers expose stale/time-out data. JSON scenarios can be recorded,
-verified, played back, and recomputed. API/UI, ML, and the expanded fault library
-remain later milestones. This is not an OEM emulator or a physical vehicle diagnostic tool.
+The dashboard shows received RPM, CAN deliveries and freshness; Engine ECU Offline
+stops publication while physics continues. Runs can be saved, played back and
+recomputed. This is a synthetic laboratory, not an OEM emulator or a physical
+vehicle diagnostic tool. Additional ECU, the fault library, datasets and ML remain
+later milestones.
+
+## Run the dashboard
+
+Install Python 3.12, [uv 0.13.6](https://docs.astral.sh/uv/getting-started/installation/)
+and Node.js 22.12+ with npm. From the source checkout:
+
+```sh
+uv run --locked autocan studio
+```
+
+Open [AutoCAN Studio](http://127.0.0.1:8000). This command installs the locked
+frontend dependencies, builds the UI, and serves it with FastAPI on the same
+local origin. No API keys or CAN hardware are needed. Use `--port 8001` to choose
+another local port. The launcher requires a source checkout; the Python wheel
+still provides the headless CLI/API but does not bundle the frontend.
+
+1. Click **Run demo**, move **Throttle**, then release it to apply the command.
+2. Click **Take offline**: the received RPM is retained, then marked **STALE** and
+   **TIMEOUT**. **Bring online** resumes publication. The engine keeps running.
+3. **Pause** freezes virtual time. Commands entered while paused apply when resumed.
+4. **Stop & save** finalizes the recording in ignored `data/runs/<run-id>/`.
+5. Select the saved run, **Load playback**, and seek through saved virtual time.
+   Playback disables live controls and pauses any active simulation.
+6. **Deterministic rerun** starts a fresh headless computation and reports whether
+   canonical events and the final state match. **Return to live** restores the live
+   view; **Reset · new recording** saves the current run and creates a fresh one.
+
+The dashboard uses KOMBI RPM, including when its last observation is stale. It
+never substitutes physical model RPM. A reload or WebSocket reconnect restores
+state and rolling history from a new snapshot. **Freeze** only freezes the CAN
+Monitor display; the simulation and recording continue.
+
+One active simulation is supported. Each API run starts paused and is recorded
+from time zero, including manual inputs. Limits: 120 virtual seconds, 256 input
+commands, 16 MiB per recording and 64 entries under `data/runs/`. Duration limits
+save automatically; recording failures stop the run visibly, and command quotas
+reject additional inputs explicitly. Stop and
+archive local runs manually to free capacity; the app never deletes them.
+The backend/frontend keep at most 200 deliveries and 400 graph points; the table
+renders the latest 50 rows. Live updates are capped at 20 Hz. Under load wall-clock
+execution may slow; integer virtual time and core calculations remain unchanged.
+This milestone does not claim a real-time performance guarantee or a v0.1 release.
+
+![AutoCAN Studio dashboard](docs/images/m3-dashboard.png)
 
 ## Development setup
 
@@ -29,9 +74,23 @@ uv run --locked pytest
 uv build --no-sources
 ```
 
-No API keys, CAN hardware, frontend runtime, or local planning documents are
-required. CI is defined in `.github/workflows/checks.yml` for pushes and PRs;
+The headless checks require no API keys, CAN hardware, frontend runtime, or local
+planning documents. CI is defined in `.github/workflows/checks.yml` for pushes and PRs;
 local checks do not imply a successful remote run for an unpushed branch.
+
+For frontend checks:
+
+```sh
+npm --prefix frontend ci
+npm --prefix frontend run typecheck
+npm --prefix frontend test
+npm --prefix frontend run build
+```
+
+For frontend development, serve the API on loopback port 8000 with
+`uv run --locked uvicorn autocan.api:create_app --factory --host 127.0.0.1`
+and run `npm --prefix frontend run dev` in another terminal. Vite proxies API/WS
+requests to the backend. The single-command demo uses a static build instead.
 
 ## Headless demo
 
@@ -131,6 +190,7 @@ The profile specifies a synthetic CAN ID, not a real vehicle mapping.
 - [Milestone status](docs/ROADMAP.md)
 - [Change history](CHANGELOG.md)
 
-M3 adds a minimal local API and UI on top of this headless chain. The later
-fault library, additional ECU, Parquet/dataset factory and ML remain separate
-milestones; M2 does not implement them.
+M3 adds the local API/UI above the unchanged headless core. M4 remains the
+release acceptance and packaging milestone; no v0.1 tag or release is implied.
+The fault library, additional ECU, Parquet/dataset factory and ML remain separate
+milestones.

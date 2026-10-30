@@ -1,9 +1,9 @@
-# Architecture — M2 headless laboratory
+# Architecture — M3 local laboratory
 
-Status: M2 adds publication-only Offline, independent freshness timers, controlled
-fixed delay/seeded loss, bounded JSON scenarios and streaming trace recording,
-verified playback and deterministic rerun. M1's clock, sensor boundary and
-CAN-only KOMBI inputs remain intact. API/UI, ML and extended faults are not implemented.
+Status: M3 adds a local FastAPI REST/WebSocket boundary and a React/TypeScript/Vite
+dashboard over M2's headless core, trace recorder and rerun contracts. The core,
+sensor isolation, CAN delivery and virtual deadlines remain unchanged. Extended
+faults, additional ECU, datasets and ML remain later milestones.
 
 ## One process, explicit ownership
 
@@ -40,7 +40,7 @@ KOMBI is the name of a synthetic instrument cluster, not an OEM implementation.
 | Engine ECU | EngineSensorPort, publication ticks | Encoded EngineStatus frames |
 | BusAdapter | Published frame and core-scheduled receiver delivery | Transport result; no physical state |
 | KOMBI | Its received CAN observations, virtual timer callbacks | Last decoded RPM and freshness |
-| Future UI | KOMBI state and explicitly selected CAN observer stream | Display only |
+| UI | KOMBI state and explicitly selected CAN observer stream | Display only |
 | Future detector | Its own observation stream, causal windows | Score and alerts |
 
 Components must receive narrow interfaces rather than the entire simulator or
@@ -116,6 +116,41 @@ then advances the core, avoiding an unbounded queue of future commands.
 ## Later stages
 
 M1 provides the headless chain; M2 implements offline fault, timers, JSONL and
-rerun. M3 adds API/UI. Parquet/SQLite and ML remain later milestones. The future
+rerun. M3 implements API/UI. Parquet/SQLite and ML remain later milestones. The future
 detector may read only past observations, must tick on an empty stream, and
 must be evaluated on both unseen faults and unfamiliar normal driving regimes.
+
+## M3 runner and UI
+
+`api.Session` owns one core simulation, a TraceRecorder and a bounded observation
+view. FastAPI mutations and the pacing coroutine run serially on the same asyncio
+loop. Every 50 ms of wall time the runner requests another 50,000,000 ns from the
+core; the deterministic core remains unaware of wall time. Pause advances nothing.
+No catch-up bursts, extra transport threads or independent ECU timers are added.
+Expensive saved-trace verification/playback/rerun uses worker threads and separate
+core instances, never the active live simulation.
+
+Recordings begin before the first event. Stop finalizes the full run; reset saves
+it, closes transport and allocates a new run ID/directory. Shutdown finalizes active
+runs when possible. Duration exhaustion saves; other failures leave a failed trace
+that playback/rerun rejects. Runs are never implicitly overwritten or deleted.
+
+The live dashboard gets `kombi_rpm` and `kombi_status` from Simulation's KOMBI state.
+`physical_rpm` is excluded from the API view. The CAN Monitor only shows delivered
+frames. Playback streams validated raw events through a separate DBC observation
+view, changes measured RPM only on delivery, and applies recorded status changes.
+It does not instantiate a VehicleModel. Its 50 ms graph sampling also runs across
+silent intervals, retaining at most the last 400 points.
+
+A WebSocket starts with a complete snapshot and then ordered bounded deltas. Each
+connection has its own `seq` starting at 1. Reconnect replaces local history with
+a snapshot; gaps or schema mismatch force reconnect. The frontend keeps 200 frames
+and 400 points, with at most 50 table rows; Freeze retains one bounded copy. Slow
+socket sends time out, allowing a new snapshot rather than accumulating messages.
+Display loss is indicated separately from the canonical recording, which always
+streams every core event or stops explicitly on failure.
+
+The launcher binds 127.0.0.1 and serves the built frontend on the API origin.
+Trusted local hosts and exact Origin checks protect HTTP and WS access; request
+bodies, connections, commands, duration, run count and recording bytes are bounded.
+This is a single-user local tool with no authentication or remote deployment mode.

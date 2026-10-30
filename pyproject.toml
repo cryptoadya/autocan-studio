@@ -11,7 +11,9 @@ requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
     "cantools>=45.1.2",
+    "fastapi>=0.135",
     "python-can>=4.6.1",
+    "uvicorn[standard]>=0.41",
 ]
 
 [project.scripts]
@@ -26,6 +28,7 @@ packages = ["backend/autocan"]
 [tool.hatch.build.targets.sdist]
 include = [
   "/backend",
+  "/frontend",
   "/tests",
   "/docs",
   "/scenarios",
@@ -59,6 +62,7 @@ files = ["backend", "tests"]
 [dependency-groups]
 dev = [
     "hatchling>=1.33.0",
+    "httpx2>=2.16.0",
     "mypy>=2.4.1",
     "pytest>=9.2.0",
     "ruff>=0.17.3",
