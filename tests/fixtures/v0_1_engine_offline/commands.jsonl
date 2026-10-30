@@ -1,0 +1,3 @@
+{"applied_at_ns":0,"command_kind":"set_throttle","command_seq":1,"event_kind":"InputApplied","event_seq":1,"percent":50.0,"profile_version":"democar-0.1.0","run_id":"eecede898c284f4ea15e3e3a2b471f65","schema_version":1,"sim_time_ns":0}
+{"applied_at_ns":100000000,"command_kind":"set_engine_publishing","command_seq":2,"enabled":false,"event_kind":"InputApplied","event_seq":13,"profile_version":"democar-0.1.0","run_id":"eecede898c284f4ea15e3e3a2b471f65","schema_version":1,"sim_time_ns":100000000}
+{"applied_at_ns":400000000,"command_kind":"set_engine_publishing","command_seq":3,"enabled":true,"event_kind":"InputApplied","event_seq":17,"profile_version":"democar-0.1.0","run_id":"eecede898c284f4ea15e3e3a2b471f65","schema_version":1,"sim_time_ns":400000000}

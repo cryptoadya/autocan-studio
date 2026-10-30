@@ -1,4 +1,5 @@
 export type Freshness = 'UNAVAILABLE' | 'FRESH' | 'STALE' | 'TIMEOUT'
+export type IgnitionRequest = 'OFF' | 'ACC' | 'ON' | 'START'
 export interface SimState {
   sim_time_ns: number
   paused: boolean
@@ -6,6 +7,7 @@ export interface SimState {
   kombi_rpm: number | null
   kombi_status: Freshness
   engine_running: boolean
+  ignition_state?: Exclude<IgnitionRequest, 'START'>
   engine_publishing: boolean
   last_received_ns: number | null
   frames_published: number

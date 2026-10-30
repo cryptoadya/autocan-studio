@@ -12,7 +12,7 @@ from autocan.bus import BusAdapter, VirtualCanAdapter
 from autocan.clock import Phase, SimulationClock, validate_time
 from autocan.ecu import EngineEcu, Kombi, KombiState
 from autocan.events import RunEvent, Scalar
-from autocan.vehicle import VehicleModel, validate_throttle
+from autocan.vehicle import VehicleModel, validate_ignition, validate_throttle
 
 PHYSICS_TICK_NS = 10_000_000
 PUBLICATION_PERIOD_NS = 20_000_000
@@ -199,6 +199,41 @@ class Simulation:
 
         return self._queue_input(at_ns, apply)
 
+    def set_engine_running(self, enabled: bool, *, at_ns: int | None = None) -> int:
+        self._check_open()
+        if type(enabled) is not bool:
+            raise ValueError("enabled must be a boolean")
+
+        def apply() -> None:
+            self._vehicle.set_engine_running(enabled)
+            self._command_seq += 1
+            self._emit(
+                "InputApplied",
+                command_seq=self._command_seq,
+                applied_at_ns=self._clock.now_ns,
+                command_kind="set_engine_running",
+                enabled=enabled,
+            )
+
+        return self._queue_input(at_ns, apply)
+
+    def set_ignition(self, state: str, *, at_ns: int | None = None) -> int:
+        self._check_open()
+        validate_ignition(state)
+
+        def apply() -> None:
+            self._vehicle.set_ignition(state)
+            self._command_seq += 1
+            self._emit(
+                "InputApplied",
+                command_seq=self._command_seq,
+                applied_at_ns=self._clock.now_ns,
+                command_kind="set_ignition",
+                state=state,
+            )
+
+        return self._queue_input(at_ns, apply)
+
     def _queue_input(self, at_ns: int | None, apply: Callable[[], None]) -> int:
         if at_ns is None:
             at_ns = (
@@ -259,7 +294,8 @@ class Simulation:
             "frames_published": self._frame_seq,
             "deliveries": self._deliveries,
             "events_emitted": self._event_seq,
-            "engine_running": True,
+            "engine_running": self._vehicle.engine_running,
+            "ignition_state": self._vehicle.ignition_state,
             "engine_publishing": self._engine_publishing,
         }
 

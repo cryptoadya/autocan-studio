@@ -52,6 +52,11 @@ p { margin: 0; }
 .status.stale { color: #ffce82; border-color: #9d7844; }
 .status.timeout { color: #ffb3a5; border-color: #a9675c; }
 .driver-panel { padding: 24px 28px; }
+.physical-engine-controls { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.physical-engine-controls p { font-size: 12px; margin: 0 0 10px; color: #536a5a; }
+.physical-engine-controls label { display: block; font-size: 11px; margin-bottom: 6px; color: #708078; }
+.engine-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.engine-actions select { flex: 1; min-width: 0; }
 .throttle-label { display: flex; justify-content: space-between; align-items: baseline; margin-top: 27px; font-size: 14px; }
 .throttle-label output { font: 32px ui-monospace, monospace; color: #174d3b; letter-spacing: -1px; }
 .throttle-label small { font-size: 15px; padding-left: 4px; color: #6b7e73; }

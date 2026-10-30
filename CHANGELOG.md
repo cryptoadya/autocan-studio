@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — M5 physical engine controls (first pass)
+
+- Add ignition OFF/ACC/ON/START and physical Start/Stop without suppressing Engine
+  ECU publication; a stopped engine coasts to zero RPM with FRESH CAN reception.
+- Route validated commands through the canonical core input phase, scenarios,
+  recording/playback/rerun, CLI and API; reserve multi-input command quotas first.
+- Add ignition/engine controls to the dashboard with an explicit physical-state
+  label, independent Offline control and playback-disabled inputs.
+- Add an original start/stop scenario, compatibility fixture from v0.1.0,
+  focused regression tests and browser acceptance alongside the previous slice.
+- M5 is not complete: additional ECU, brake/gear/speed, expanded DBC and normal
+  urban drive are subsequent passes. No release or remote CI result is implied.
+
 ## Unreleased — v0.1.0 / M4 vertical slice acceptance
 
 - Add repeatable Chromium acceptance of the production UI with real API/core,

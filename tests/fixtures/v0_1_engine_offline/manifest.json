@@ -1,0 +1,88 @@
+{
+  "artifacts": {
+    "commands.jsonl": {
+      "bytes": 761,
+      "records": 3,
+      "sha256": "4f619345c70c8d96c3bf504c5fdd0d4f1d021c680baac1892649a911573680be"
+    },
+    "events.jsonl": {
+      "bytes": 9456,
+      "records": 36,
+      "sha256": "b7920ff0d53bf2387d9d4091b5fd3b376c30028dcd9c9a83a81859ae3743069b"
+    },
+    "faults.jsonl": {
+      "bytes": 618,
+      "records": 2,
+      "sha256": "53b677cf8cc6e6eec55e35db7102efca4b787b4e2651578b350c971221eb615f"
+    },
+    "profile.dbc": {
+      "bytes": 447,
+      "records": 0,
+      "sha256": "9647eb0938454c8c5e1b75a0e1f619ac7c7de3501ed4ce0bafdad280726860ec"
+    }
+  },
+  "config_sha256": "29a086c43cabcd48ab69fa5b152232052a42a8d2ee3e6dd235cd4b0ba955e714",
+  "configuration": {
+    "delivery_delay_ns": 0,
+    "drop_probability": 0.0,
+    "physics_tick_ns": 10000000,
+    "publication_period_ns": 20000000,
+    "rng_algorithm": "sha256-namespaced-v1/python.Random",
+    "rng_streams": {
+      "delivery": "3277d6016fc9242dfed62d19634591c4be3bdc302050e6a83779a258e28b1aa6",
+      "physics": "d7d51531e8d264e77130536fc2bd8239f0ef7a483bf6a01c6f5f97185b7e3645",
+      "scenario": "b0fa53618fb315d5e29c8b0d9fa9df6170c81c1aef24135bf810272a4cc06b11"
+    },
+    "seed": 42,
+    "stale_after_ns": 60000000,
+    "timeout_after_ns": 200000000
+  },
+  "core_sha256": "6e36f17c0f0638cbaf5926a00b27df35ed0b2e0d2feb24d89d3e6196f22dcdf6",
+  "core_version": "m2-1",
+  "end_time_ns": 600000000,
+  "final_state": {
+    "deliveries": 16,
+    "engine_publishing": true,
+    "engine_running": true,
+    "events_emitted": 41,
+    "frames_published": 16,
+    "kombi_rpm": 2000.0,
+    "kombi_status": "FRESH",
+    "last_received_ns": 600000000,
+    "paused": false,
+    "physical_rpm": 2000.0,
+    "seed": 42,
+    "sim_time_ns": 600000000,
+    "throttle_percent": 50.0
+  },
+  "format_version": 1,
+  "git_commit": null,
+  "git_dirty": null,
+  "initial_state": {
+    "deliveries": 0,
+    "engine_publishing": true,
+    "engine_running": true,
+    "events_emitted": 0,
+    "frames_published": 0,
+    "kombi_rpm": null,
+    "kombi_status": "UNAVAILABLE",
+    "last_received_ns": null,
+    "paused": false,
+    "physical_rpm": 800.0,
+    "seed": 42,
+    "sim_time_ns": 0,
+    "throttle_percent": 0.0
+  },
+  "package_versions": {
+    "autocan-studio": "0.1.0",
+    "cantools": "45.1.2",
+    "python": "3.12.8",
+    "python-can": "4.6.1"
+  },
+  "profile_sha256": "9647eb0938454c8c5e1b75a0e1f619ac7c7de3501ed4ce0bafdad280726860ec",
+  "profile_version": "democar-0.1.0",
+  "run_id": "eecede898c284f4ea15e3e3a2b471f65",
+  "schema_version": 1,
+  "semantic_sha256": "0d6bae00cc964c40627a39fcbbac28367fe0501061379d83cb4283ea2ec51c5c",
+  "status": "complete"
+}

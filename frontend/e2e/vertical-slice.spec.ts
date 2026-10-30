@@ -3,6 +3,9 @@ import { expect, test, type Locator } from '@playwright/test'
 // Native range inputs do not support fill(). Send input and release through the
 // rendered control, preserving React's normal command/seek handlers.
 async function setRange(range: Locator, value: number) {
+  // Synthetic input/release bypasses browser actionability. Wait until a newly
+  // created run has finished connecting before sending commands through it.
+  await expect(range).toBeEnabled()
   await range.evaluate((element, next) => {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
     setter.call(element, String(next))
