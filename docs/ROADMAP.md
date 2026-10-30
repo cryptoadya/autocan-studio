@@ -21,6 +21,9 @@ belongs to M1/M2. No UI or ML implementation is included in M0.
 
 ## M0 acceptance boundary
 
+Completed locally and published as the foundation commit. M1 extends the
+headless runtime while preserving the DBC contract and M0 checks.
+
 - A fresh checkout installs with `uv sync --locked` and runs the README checks.
 - EngineStatus has a strictly parsed original DBC, golden payloads, declared
   resolution/range/period, explicit encoding errors, and packaged-resource access.
@@ -29,3 +32,15 @@ belongs to M1/M2. No UI or ML implementation is included in M0.
 - Local master-plan and AGENTS.md are ignored and excluded from distributions.
 - CI configuration uses the same checks; a remote CI run requires a separately
   authorized GitHub repository. No remote CI success is claimed by local checks.
+
+## M1 acceptance boundary
+
+- Stable nanosecond scheduling, phase/enqueue ordering, bounded event/transport
+  queues, pause/resume, explicit stepping, and reset.
+- Throttle -> physical RPM -> permitted Engine sensor -> DBC -> VirtualBus ->
+  per-receiver delivery -> KOMBI decoding, demonstrated by CLI and tests.
+- Physical RPM changes between publications do not refresh KOMBI's measured RPM.
+- Two 30-second virtual runs with the same seed and commands produce identical
+  canonical events after excluding run identity; no wall-clock delays are used.
+- CLI supports finite exact durations, JSON state/events and shell controls.
+- ECU Offline, STALE/TIMEOUT, persisted traces and replay remain M2; UI remains M3.
