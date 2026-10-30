@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — v0.1.0 / M4 vertical slice acceptance
+
+- Add repeatable Chromium acceptance of the production UI with real API/core,
+  disposable recordings, exact freshness deadlines in playback and a fresh rerun.
+- Include pause/reload snapshot recovery, reset and a mobile viewport in the pass.
+- Add a browser CI job and retained video/trace/screenshot artifacts.
+- Document the clean quickstart, reproducible offline demo and acceptance evidence;
+  include a short recording and screenshot from the real browser run.
+- Set Python/UI package versions to 0.1.0. This prepares the local release;
+  no release tag, GitHub Release or remote CI success is implied.
+
 ## Unreleased — M3 first working UI
 
 - Cancel pending playback loads on return to live; ignore stale responses/errors

@@ -76,3 +76,20 @@ headless runtime while preserving the DBC contract and M0 checks.
   socket reconnect and a 390 px mobile viewport. Screenshot: `images/m3-dashboard.png`.
 - M4 remains the versioned release and repeatable release-acceptance/demo pass.
   No v0.1 release, deployment or remote CI success is claimed by this local work.
+
+## M4 acceptance boundary
+
+- Repeatable Chromium acceptance against the built UI and real local API/core:
+  throttle -> CAN -> KOMBI, publication-only Offline, retained measurement,
+  virtual deadlines in playback, saved recording and matching deterministic rerun.
+- Pause/reload snapshot recovery, disabled live controls during playback, reset
+  and a 390 px viewport are included in the browser pass.
+- A clean source-checkout quickstart, the reproducible engine-offline scenario,
+  a short browser recording and a contract-to-check acceptance report.
+- Python/frontend checks plus a separate Linux Chromium CI job, with browser
+  artifacts retained for inspection. Remote CI requires an authorized push.
+- Package version 0.1.0 prepares the local vertical slice for release. Publishing
+  a tag/GitHub Release remains a separate action; it is not implied by this work.
+- No additional ECU, controls, faults, Parquet, datasets or ML are included.
+
+See [v0.1 acceptance](V0_1_ACCEPTANCE.md) for executed checks and limitations.

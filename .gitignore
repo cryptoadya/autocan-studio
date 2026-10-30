@@ -25,3 +25,5 @@ htmlcov/
 # Frontend dependencies and generated outputs
 node_modules/
 *.tsbuildinfo
+frontend/test-results/
+frontend/playwright-report/
