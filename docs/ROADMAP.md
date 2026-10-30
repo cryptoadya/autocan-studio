@@ -1,0 +1,31 @@
+# Milestones
+
+This public roadmap describes deliverables, not a command to implement all of
+them at once. Local planning/instruction files are not required to use, build,
+or test this repository.
+
+| Milestone | Scope |
+| --- | --- |
+| M0 | Python foundation, environment/lockfile, checks, architecture/data contracts, synthetic EngineStatus DBC |
+| M1 | Deterministic clock, throttle/RPM model, Engine ECU, CAN delivery, KOMBI and headless CLI |
+| M2 | Offline fault, silent-bus timers, JSONL/manifest, playback and deterministic rerun |
+| M3 | Minimal local API, Dashboard, graph, CAN Monitor and reconnect |
+| M4 | Browser acceptance and first vertical slice release v0.1 |
+| M5–M7 | Additional ECU/controls, fault scenarios and dataset factory; V1 without ML |
+| M8–M11 | Causal features, baselines, classic ML, live inference and measured V2 release |
+| M12 | Optional extensions after V2 |
+
+The first vertical slice replaces the old initial roadmap. It is not an extra
+project before it. M0 specifies timing and isolation; their runtime acceptance
+belongs to M1/M2. No UI or ML implementation is included in M0.
+
+## M0 acceptance boundary
+
+- A fresh checkout installs with `uv sync --locked` and runs the README checks.
+- EngineStatus has a strictly parsed original DBC, golden payloads, declared
+  resolution/range/period, explicit encoding errors, and packaged-resource access.
+- Contracts define initial state, allowed ECU inputs, frame/delivery boundaries,
+  event order, stale/timeout deadlines, and replay versus rerun.
+- Local master-plan and AGENTS.md are ignored and excluded from distributions.
+- CI configuration uses the same checks; a remote CI run requires a separately
+  authorized GitHub repository. No remote CI success is claimed by local checks.
