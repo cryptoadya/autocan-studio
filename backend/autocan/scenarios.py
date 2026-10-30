@@ -5,16 +5,27 @@ from pathlib import Path
 
 from autocan.simulation import PHYSICS_TICK_NS, Simulation
 from autocan.validation import fields, integer, json_object, number, object_value
+from autocan.vehicle import validate_ignition
 
 MAX_SCENARIO_BYTES = 64 * 1024
 MAX_COMMANDS = 256
+
+
+def command_parameter(kind: object) -> str:
+    if kind == "set_throttle":
+        return "percent"
+    if kind == "set_ignition":
+        return "state"
+    if kind in ("set_engine_publishing", "set_engine_running"):
+        return "enabled"
+    raise ValueError("unsupported command kind")
 
 
 @dataclass(frozen=True, slots=True)
 class ScenarioCommand:
     at_ns: int
     kind: str
-    value: float | bool
+    value: float | bool | str
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> "ScenarioCommand":
@@ -24,23 +35,34 @@ class ScenarioCommand:
             raise ValueError("command time must align with the physics grid")
         if kind == "set_throttle":
             fields(data, {"at_ns", "kind", "percent"})
-            value: float | bool = number(data["percent"], "percent", minimum=0, maximum=100)
-        elif kind == "set_engine_publishing":
+            value: float | bool | str = number(data["percent"], "percent", minimum=0, maximum=100)
+        elif kind in ("set_engine_publishing", "set_engine_running"):
             fields(data, {"at_ns", "kind", "enabled"})
             enabled = data["enabled"]
             if type(enabled) is not bool:
                 raise ValueError("enabled must be a boolean")
             value = enabled
+        elif kind == "set_ignition":
+            fields(data, {"at_ns", "kind", "state"})
+            state = data["state"]
+            if not isinstance(state, str):
+                raise ValueError("ignition must be a string")
+            validate_ignition(state)
+            value = state
         else:
             raise ValueError("unsupported command kind")
         return cls(at, kind, value)
 
     def schedule(self, sim: Simulation) -> None:
         # Revalidate even programmatically constructed scenarios.
-        if self.kind == "set_throttle" and not isinstance(self.value, bool):
+        if self.kind == "set_throttle" and not isinstance(self.value, (bool, str)):
             sim.set_throttle(self.value, at_ns=self.at_ns)
         elif self.kind == "set_engine_publishing" and type(self.value) is bool:
             sim.set_engine_publishing(self.value, at_ns=self.at_ns)
+        elif self.kind == "set_engine_running" and type(self.value) is bool:
+            sim.set_engine_running(self.value, at_ns=self.at_ns)
+        elif self.kind == "set_ignition" and isinstance(self.value, str):
+            sim.set_ignition(self.value, at_ns=self.at_ns)
         else:
             raise ValueError("invalid scenario command")
 
@@ -65,7 +87,7 @@ class Scenario:
             if command.at_ns > self.duration_ns or command.at_ns % PHYSICS_TICK_NS:
                 raise ValueError("command is outside the run or physics grid")
             parameters: dict[str, object] = {"at_ns": command.at_ns, "kind": command.kind}
-            parameters["percent" if command.kind == "set_throttle" else "enabled"] = command.value
+            parameters[command_parameter(command.kind)] = command.value
             ScenarioCommand.from_dict(parameters)
 
     @classmethod

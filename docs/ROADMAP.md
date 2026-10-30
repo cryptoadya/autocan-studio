@@ -93,3 +93,18 @@ headless runtime while preserving the DBC contract and M0 checks.
 - No additional ECU, controls, faults, Parquet, datasets or ML are included.
 
 See [v0.1 acceptance](V0_1_ACCEPTANCE.md) for executed checks and limitations.
+
+## M5 first pass — physical engine controls
+
+- Ignition OFF/ACC/ON/START and explicit physical Start/Stop through the existing
+  model/core, strict scenarios, applied command logs, CLI, API and dashboard.
+- Stopped RPM coasts to zero with continued FRESH EngineStatus delivery. ECU
+  Offline remains publication-only; controls while offline cannot refresh KOMBI.
+- Pause/reset, deterministic command ordering, batch quotas, verified playback
+  and fresh rerun cover the new controls. A small unchanged v0.1 fixture verifies
+  historical playback; incompatible old-core rerun is rejected explicitly.
+- `scenarios/engine_start_stop.json` and `images/m5-engine-controls.png` demonstrate
+  this pass. Local unit/integration and browser verification accompanies it;
+  remote CI requires a separately authorized push.
+- M5 remains in progress: ABS/DSC, Transmission, Body, brake/gear/speed, expanded
+  DBC/subscriptions, KOMBI signal availability and normal urban drive remain.

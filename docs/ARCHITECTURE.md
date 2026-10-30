@@ -1,9 +1,10 @@
-# Architecture — M3 local laboratory
+# Architecture — local laboratory
 
 Status: M3 adds a local FastAPI REST/WebSocket boundary and a React/TypeScript/Vite
 dashboard over M2's headless core, trace recorder and rerun contracts. The core,
 sensor isolation, CAN delivery and virtual deadlines remain unchanged. Extended
-faults, additional ECU, datasets and ML remain later milestones.
+faults, additional ECU, datasets and ML remain later milestones. The first M5
+pass adds physical engine/ignition controls over this same chain.
 
 ## One process, explicit ownership
 
@@ -32,10 +33,17 @@ KOMBI is the name of a synthetic instrument cluster, not an OEM implementation.
 
 ## Allowed inputs
 
+M5 engine-control pass extends only the physical engine controls. VehicleModel
+owns ignition and engine-running state; DriverInput applies validated ignition
+and Start/Stop requests at the canonical input phase. Engine ECU still reads only
+RPM, and KOMBI still reads only its CAN observations. UI labels ignition/physical
+engine state as control/model state, separately from received KOMBI RPM.
+Brake/gear/speed and the additional ECU network remain subsequent M5 work.
+
 | Component | Allowed inputs | Owned output/state |
 | --- | --- | --- |
-| DriverInput | Validated user/scenario commands applied by core | Requested throttle |
-| VehicleModel | DriverInput, fixed physics ticks, its initial state | Physical RPM and engine-running state |
+| DriverInput | Validated user/scenario commands applied by core | Requested throttle, ignition, physical Start/Stop |
+| VehicleModel | DriverInput, fixed physics ticks, its initial state | Physical RPM, ignition and engine-running state |
 | EngineSensorPort | Read-only access to the explicitly allowed RPM sensor | RPM observation for Engine ECU |
 | Engine ECU | EngineSensorPort, publication ticks | Encoded EngineStatus frames |
 | BusAdapter | Published frame and core-scheduled receiver delivery | Transport result; no physical state |
@@ -85,8 +93,10 @@ publications. It does not stop the physical engine or alter VehicleModel.
 Previously published frames keep their scheduled deliveries. KOMBI eventually
 becomes STALE/TIMEOUT after its last valid delivery; the injector never sets
 KOMBI's status directly. On re-enable, publication resumes at the next original
-periodic tick, without sending a backlog. Stopping the physical engine is a
-different future command.
+periodic tick, without sending a backlog. M5's physical Stop is a separate
+command: the engine coasts to zero and Engine ECU continues publishing fresh
+measurements. The UI labels physical engine/control state explicitly; received
+RPM and freshness remain exclusively CAN-driven.
 
 ## Time and replay boundaries
 

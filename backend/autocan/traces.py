@@ -14,11 +14,11 @@ from types import TracebackType
 from typing import BinaryIO, Self
 
 from autocan.events import CanFrame, RunEvent, Scalar
-from autocan.scenarios import MAX_COMMANDS, Scenario, ScenarioCommand
+from autocan.scenarios import MAX_COMMANDS, Scenario, ScenarioCommand, command_parameter
 from autocan.simulation import Simulation
 from autocan.validation import canonical_bytes, fields, integer, json_object, number, object_value
 
-CORE_VERSION = "m2-1"
+CORE_VERSION = "m5-engine-controls-1"
 DEFAULT_MAX_BYTES = 16 * 1024 * 1024
 MAX_MANIFEST_BYTES = 64 * 1024
 MAX_LINE_BYTES = 64 * 1024
@@ -428,7 +428,7 @@ def _validate_event(record: dict[str, object], meta: dict[str, object]) -> None:
             integer(record["seed"], "drop seed")
     elif kind == "InputApplied":
         command_kind = record.get("command_kind")
-        parameter = "percent" if command_kind == "set_throttle" else "enabled"
+        parameter = command_parameter(command_kind)
         fields(record, base | {"command_seq", "applied_at_ns", "command_kind", parameter})
         integer(record["command_seq"], "command_seq", minimum=1)
         if integer(record["applied_at_ns"], "applied time") != now:
@@ -565,7 +565,7 @@ def rerun(root: Path) -> dict[str, object]:
             for index, record in enumerate(group):
                 if index >= MAX_COMMANDS:
                     raise TraceError("too many simultaneous commands")
-                parameter = "percent" if record["command_kind"] == "set_throttle" else "enabled"
+                parameter = command_parameter(record["command_kind"])
                 ScenarioCommand.from_dict(
                     {"at_ns": time_ns, "kind": record["command_kind"], parameter: record[parameter]}
                 ).schedule(sim)

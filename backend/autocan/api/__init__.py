@@ -5,12 +5,12 @@ import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal, Self
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -68,7 +68,17 @@ class CreateSimulation(BaseModel):
 
 class Inputs(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
-    throttle: float = Field(ge=0, le=100, allow_inf_nan=False)
+    throttle: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
+    ignition: Literal["OFF", "ACC", "ON", "START"] | None = None
+    engine_running: bool | None = None
+
+    @model_validator(mode="after")
+    def validate_controls(self) -> Self:
+        if not self.model_fields_set or any(
+            getattr(self, name) is None for name in self.model_fields_set
+        ):
+            raise ValueError("provide at least one input; null inputs are not supported")
+        return self
 
 
 class Fault(BaseModel):
@@ -152,7 +162,11 @@ def create_app(*, data_root: Path = Path("data/runs"), static_root: Path | None 
 
     @app.patch("/api/simulations/{identifier}/inputs")
     async def inputs(identifier: str, spec: Inputs) -> dict[str, int]:
-        return {"applied_at_ns": current(identifier).inputs(spec.throttle)}
+        return {
+            "applied_at_ns": current(identifier).inputs(
+                spec.throttle, ignition=spec.ignition, engine_running=spec.engine_running
+            )
+        }
 
     @app.post("/api/simulations/{identifier}/faults")
     async def fault(identifier: str, spec: Fault) -> dict[str, int]:

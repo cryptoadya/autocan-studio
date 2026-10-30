@@ -63,7 +63,7 @@ def _shell(sim: Simulation) -> int:
     if sys.stdin.isatty():
         print(
             "Commands: throttle PERCENT, run MILLISECONDS, offline, online, "
-            "pause, resume, step, reset, state, quit",
+            "ignition OFF|ACC|ON|START, engine start|stop, pause, resume, step, reset, state, quit",
             file=sys.stderr,
         )
     for line in sys.stdin:
@@ -84,6 +84,12 @@ def _shell(sim: Simulation) -> int:
                     sim.set_engine_publishing(False)
                 case ["online"]:
                     sim.set_engine_publishing(True)
+                case ["ignition", value]:
+                    sim.set_ignition(value)
+                case ["engine", "start"]:
+                    sim.set_engine_running(True)
+                case ["engine", "stop"]:
+                    sim.set_engine_running(False)
                 case ["resume"]:
                     sim.resume()
                 case ["step"]:

@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
-import type { SimState } from '../types'
+import type { IgnitionRequest, SimState } from '../types'
 
 interface Props {
   state: SimState | undefined
   disabled: boolean
   onThrottle: (value: number) => void
   onOffline: (offline: boolean) => void
+  onIgnition: (value: IgnitionRequest) => void
+  onEngineRunning: (running: boolean) => void
 }
 
-export function Dashboard({state, disabled, onThrottle, onOffline}: Props) {
+export function Dashboard({state, disabled, onThrottle, onOffline, onIgnition, onEngineRunning}: Props) {
   const [throttle, setThrottle] = useState(state?.throttle_percent ?? 0)
   const [editing, setEditing] = useState(false)
   useEffect(() => {
@@ -38,12 +40,27 @@ export function Dashboard({state, disabled, onThrottle, onOffline}: Props) {
         onPointerUp={commit} onKeyUp={commit} onBlur={() => {if (editing) commit()}} />
       <div className="input-scale"><span>Idle</span><span>Full throttle</span></div>
       <p className="help">Release to apply. Commands use the next simulation tick.</p>
+      <div className="physical-engine-controls">
+        <p>Physical engine: {state ? state.engine_running ? 'Running' : 'Stopped' : '—'}</p>
+        <label htmlFor="ignition">Ignition</label>
+        <div className="engine-actions">
+          <select id="ignition" aria-label="Ignition" value={state?.ignition_state ?? 'ON'}
+            disabled={disabled} onChange={e => onIgnition(e.target.value as IgnitionRequest)}>
+            <option value="OFF">OFF</option><option value="ACC">ACC</option>
+            <option value="ON">ON</option><option value="START">START (momentary)</option>
+          </select>
+          <button className="secondary" disabled={disabled}
+            onClick={() => onEngineRunning(state?.engine_running === false)}>
+            {state?.engine_running === false ? 'Start engine' : 'Stop engine'}
+          </button>
+        </div>
+      </div>
     </div>
     <div className="ecu-panel">
       <div className="panel-label">Engine ECU / Publication</div>
       <div className="ecu-state"><span className={`indicator ${state?.engine_publishing === false ? 'off' : ''}`} />
         {state?.engine_publishing === false ? 'Offline' : 'Online'}</div>
-      <p>Offline stops CAN publication.<br />The physical engine keeps running.</p>
+      <p>Offline stops CAN publication.<br />Physical engine controls are independent.</p>
       <button className={state?.engine_publishing === false ? 'secondary' : 'danger-outline'}
         disabled={disabled} onClick={() => onOffline(state?.engine_publishing !== false)}
         aria-label={state?.engine_publishing === false ? 'Bring Engine ECU online' : 'Take Engine ECU offline'}>

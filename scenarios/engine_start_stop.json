@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "duration_ns": 1000000000,
+  "seed": 42,
+  "commands": [
+    {"at_ns": 0, "kind": "set_ignition", "state": "OFF"},
+    {"at_ns": 400000000, "kind": "set_ignition", "state": "ON"},
+    {"at_ns": 500000000, "kind": "set_engine_running", "enabled": true},
+    {"at_ns": 900000000, "kind": "set_engine_running", "enabled": false}
+  ]
+}

@@ -8,6 +8,30 @@ Schema version is `1`; profile version is
 
 ## Initial conditions and timing
 
+### M5 engine-control extension
+
+Initial ignition is ON with the physical engine running at 800 rpm. Supported
+ignition requests are OFF/ACC/ON/START: OFF and ACC stop the physical engine;
+ON supplies ignition without starting; START starts immediately and returns ON
+(synthetic behavior, with no starter/cranking model). Explicit Start engine also
+sets ignition ON; Stop engine leaves ignition unchanged. Requests are idempotent.
+With the engine stopped, physical RPM moves toward zero at the existing 2000
+rpm/s slew rate, independently of throttle. This does not disable Engine ECU:
+its RPM publications continue and zero RPM is a valid FRESH CAN measurement.
+
+`set_engine_running` uses boolean `enabled`; `set_ignition` uses string `state`.
+Both follow the existing input grid, event ordering and applied-command log.
+Unknown states, wrong types or extra fields are rejected. Reset restores the
+original running-engine state. The RPM DBC and trace envelope remain unchanged;
+new command kinds extend schema 1, and older recordings remain playable. Rerun
+still requires an exact compatible core hash/runtime rather than rewriting data.
+
+| Added control/state | Owner | Permitted access |
+| --- | --- | --- |
+| Ignition request / current ignition | DriverInput / VehicleModel | Control UI, applied-command playback; not a CAN measurement |
+| Physical Start/Stop / engine-running | DriverInput / VehicleModel | Explicitly labelled physical engine state; Engine ECU continues to measure RPM only |
+| Zero or coasting RPM after Stop | VehicleModel | Engine sensor -> existing EngineStatus -> KOMBI; no direct physical RPM in UI |
+
 | Parameter | Default |
 | --- | --- |
 | Virtual time | 0 ns |
@@ -34,7 +58,8 @@ unlogged mutation.
 
 The M1 model uses `target = idle + (maximum - idle) * throttle / 100` and moves
 toward it by at most `slew * delta_ns / 1e9` per physics tick, without overshoot.
-The engine remains physically running; engine start/stop is a later control.
+M5 adds the explicit engine/ignition controls described above; absent these
+commands, the original throttle trajectory remains unchanged.
 The model is noise-free. Seed is accepted and reported, but no random stream is
 consumed by physics. M2 uses `sha256("autocan-rng-v1:{seed}:{stream}")` to derive
 independent `physics`, `scenario` and `delivery` seeds. Only delivery loss uses
@@ -244,8 +269,9 @@ valid: their scheduled future receptions are outside that recorded time range.
 ## M3 local API and live display
 
 The recording schema/core/profile versions are unchanged. API/WS display schema
-version is `1`. The API exposes only DemoCar, throttle and the Offline publication
-fault; brake, ignition, gear, ML and profile editing are not accepted.
+version is `1`. The API exposes DemoCar, throttle, M5 ignition/physical engine
+controls and the Offline publication fault; brake, gear, ML and profile editing
+are not accepted in the engine-control pass.
 
 | Endpoint | Behavior |
 | --- | --- |
@@ -254,7 +280,7 @@ fault; brake, ignition, gear, ML and profile editing are not accepted.
 | `GET /api/simulations/current` | Current snapshot or `null`, for page reload |
 | `GET /api/simulations/{id}/state` | Current display snapshot, excluding physical RPM |
 | `POST /api/simulations/{id}/start`, `/pause`, `/stop`, `/reset` | Resume, pause, finalize, or finalize and allocate a fresh run |
-| `PATCH /api/simulations/{id}/inputs` | `{throttle: 50}`; finite percentage, returns canonical `applied_at_ns` |
+| `PATCH /api/simulations/{id}/inputs` | Nonempty subset of `{throttle: 50, ignition: "ON", engine_running: true}`; validated controls, returns canonical `applied_at_ns` |
 | `POST /api/simulations/{id}/faults` | `{offline: true}`; publication only, returns canonical `applied_at_ns` |
 | `GET /api/runs` | Up to 64 complete, verified server-style UUID recordings |
 | `GET /api/runs/{id}/playback?until_ns=N` | Bounded display snapshot through N (default: recorded end); verified saved events only |
@@ -262,7 +288,10 @@ fault; brake, ignition, gear, ML and profile editing are not accepted.
 
 Payloads reject unknown fields, boolean seeds/throttle and non-boolean Offline.
 Inputs are queued, not applied by HTTP receipt; a paused run applies them after
-resume. Stop finalizes only applied commands. A never-started run processes its
+resume. Explicit null inputs and empty requests are rejected. A multi-field
+batch applies throttle, ignition, then physical engine control at the same input
+boundary; the entire command quota is reserved before any part is queued. Each
+field counts as one applied command. Stop finalizes only applied commands. A never-started run processes its
 first 10 ms step before saving so the recording contains initial events. Reset
 retains the seed, restores initial conditions and returns a new run identity.
 Saved-run identifiers are UUID hex strings, not filesystem paths. Failed or

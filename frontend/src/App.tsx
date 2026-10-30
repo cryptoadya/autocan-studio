@@ -114,6 +114,8 @@ export function App() {
       {isPlayback && <div className="playback-banner">Viewing saved events. Live controls are disabled; the simulation is paused.</div>}
       <Dashboard key={view?.id} state={view?.state} disabled={disabled}
         onThrottle={value => command('inputs', 'PATCH', {throttle: value})}
+        onIgnition={ignition => command('inputs', 'PATCH', {ignition})}
+        onEngineRunning={engine_running => command('inputs', 'PATCH', {engine_running})}
         onOffline={offline => command('faults', 'POST', {offline})} />
       <SignalChart signals={view?.signals ?? []} now={view?.sim_time_ns ?? 0} />
       <CanMonitor key={`${view?.id}-${view?.mode}`} frames={view?.frames ?? []} skipped={skipped} />

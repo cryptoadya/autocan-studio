@@ -10,6 +10,7 @@ from autocan.events import RunEvent, Scalar
 from autocan.simulation import Simulation
 from autocan.traces import TraceRecorder, playback, verify_trace
 from autocan.validation import integer
+from autocan.vehicle import validate_ignition, validate_throttle
 
 TICK_NS = 50_000_000
 MAX_DURATION_NS = 120_000_000_000
@@ -34,6 +35,7 @@ class ObservationView:
             "last_received_ns": None,
             "throttle_percent": 0,
             "engine_running": True,
+            "ignition_state": "ON",
             "engine_publishing": True,
             "frames_published": 0,
             "deliveries": 0,
@@ -69,8 +71,19 @@ class ObservationView:
         elif kind == "InputApplied":
             if event["command_kind"] == "set_throttle":
                 self.state["throttle_percent"] = event["percent"]
-            else:
+            elif event["command_kind"] == "set_engine_publishing":
                 self.state["engine_publishing"] = event["enabled"]
+            elif event["command_kind"] == "set_engine_running":
+                self.state["engine_running"] = event["enabled"]
+                if event["enabled"]:
+                    self.state["ignition_state"] = "ON"
+            elif event["command_kind"] == "set_ignition":
+                ignition = event["state"]
+                self.state["ignition_state"] = "ON" if ignition == "START" else ignition
+                if ignition in {"OFF", "ACC"}:
+                    self.state["engine_running"] = False
+                elif ignition == "START":
+                    self.state["engine_running"] = True
         # Core already bounds pending delivery references to 256 (+1 provisional).
         if len(self.pending) > 257:
             raise ValueError("observation delivery buffer exceeded")
@@ -115,15 +128,38 @@ class Session:
         if self.stopped:
             raise ValueError("run is stopped; create a new recording")
 
-    def _command(self) -> None:
+    def _command(self, count: int = 1) -> None:
         self._check_active()
-        if self.commands >= MAX_COMMANDS:
+        if self.commands + count > MAX_COMMANDS:
             raise ValueError("command quota reached (256); stop and save this run")
-        self.commands += 1
+        self.commands += count
 
-    def inputs(self, throttle: float) -> int:
-        self._command()
-        return self.sim.set_throttle(throttle)
+    def inputs(
+        self,
+        throttle: float | None = None,
+        *,
+        ignition: str | None = None,
+        engine_running: bool | None = None,
+    ) -> int:
+        count = sum(value is not None for value in (throttle, ignition, engine_running))
+        if not count:
+            raise ValueError("at least one input is required")
+        if throttle is not None:
+            validate_throttle(throttle)
+        if ignition is not None:
+            validate_ignition(ignition)
+        if engine_running is not None and type(engine_running) is not bool:
+            raise ValueError("engine_running must be a boolean")
+        self._command(count)
+        # A batch shares one input boundary; reserve its entire quota first.
+        applied = 0
+        if throttle is not None:
+            applied = self.sim.set_throttle(throttle)
+        if ignition is not None:
+            applied = self.sim.set_ignition(ignition)
+        if engine_running is not None:
+            applied = self.sim.set_engine_running(engine_running)
+        return applied
 
     def offline(self, enabled: bool) -> int:
         self._command()

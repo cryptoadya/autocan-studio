@@ -3,12 +3,16 @@
 A local-first, synthetic CAN laboratory with a deterministic simulator and an
 independent anomaly-detection pipeline planned for later milestones.
 
-**Current scope: v0.1 — the first vertical slice (M0–M4).** A synthetic throttle/RPM
+**Current development: M5 engine controls; released baseline: v0.1.0 (M0–M4).**
+A synthetic throttle/RPM
 model publishes EngineStatus through an Engine ECU and an in-process python-can
 adapter. KOMBI decodes its received frames independently of physical state.
 The dashboard shows received RPM, CAN deliveries and freshness; Engine ECU Offline
 stops publication while physics continues. Runs can be saved, played back and
-recomputed. This is a synthetic laboratory, not an OEM emulator or a physical
+recomputed. The first M5 pass adds ignition and physical Start/Stop while keeping
+ECU publication independent. ABS/Transmission/Body, brake/gear/speed and the
+expanded CAN profile remain subsequent M5 work. This is a synthetic laboratory,
+not an OEM emulator or a physical
 vehicle diagnostic tool. Additional ECU, the fault library, datasets and ML remain
 later milestones.
 
@@ -31,7 +35,8 @@ still provides the headless CLI/API but does not bundle the frontend.
 
 1. Click **Run demo**, move **Throttle**, then release it to apply the command.
 2. Click **Take offline**: the received RPM is retained, then marked **STALE** and
-   **TIMEOUT**. **Bring online** resumes publication. The engine keeps running.
+   **TIMEOUT**. **Bring online** resumes publication. Offline leaves the physical
+   engine state unchanged.
 3. **Pause** freezes virtual time. Commands entered while paused apply when resumed.
 4. **Stop & save** finalizes the recording in ignored `data/runs/<run-id>/`.
 5. Select the saved run, **Load playback**, and seek through saved virtual time.
@@ -39,6 +44,16 @@ still provides the headless CLI/API but does not bundle the frontend.
 6. **Deterministic rerun** starts a fresh headless computation and reports whether
    canonical events and the final state match. **Return to live** restores the live
    view; **Reset · new recording** saves the current run and creates a fresh one.
+
+Use **Stop engine** to stop the physical engine: measured RPM coasts toward zero
+while Engine ECU keeps publishing, so zero remains **FRESH**. **Start engine**
+turns ignition ON and restarts it. Ignition OFF/ACC stops the engine; ON alone
+does not start it; START is a momentary synthetic request that returns to ON.
+Physical engine state is explicitly labelled separately from received CAN RPM.
+These controls also work while Engine ECU is offline; KOMBI refreshes only when
+CAN publication resumes.
+
+![M5 engine stopped with fresh zero RPM](docs/images/m5-engine-controls.png)
 
 The dashboard uses KOMBI RPM, including when its last observation is stale. It
 never substitutes physical model RPM. A reload or WebSocket reconnect restores
@@ -135,7 +150,8 @@ complete recording. Events are not accumulated in memory by the simulator.
 Physics is noise-free; controlled delivery loss uses its own seeded RNG stream.
 
 The shell accepts one command per line and prints JSON state after each valid
-command: `throttle PERCENT`, `run MILLISECONDS`, `offline`, `online`, `pause`, `resume`, `step`,
+command: `throttle PERCENT`, `ignition OFF|ACC|ON|START`, `engine start`, `engine stop`,
+`run MILLISECONDS`, `offline`, `online`, `pause`, `resume`, `step`,
 `reset`, `state`, `quit`. `run` is relative to the current virtual time and does
 not advance while paused. `step` advances 10 ms even while paused, preserving
 the pause setting. Reset creates a fresh run at time zero, clears queued
@@ -164,6 +180,13 @@ The offline example starts at 800 rpm, applies 50% throttle, disables Engine ECU
 publication at 100 ms, and enables it at 400 ms. The last pre-offline reception
 is at 80 ms: KOMBI becomes STALE at 140 ms, TIMEOUT at 280 ms, and FRESH again
 at 400 ms. Physical RPM continues increasing throughout.
+
+`scenarios/engine_start_stop.json` demonstrates the M5 controls: ignition OFF,
+ON without restarting, explicit Start and Stop, with CAN publication enabled
+throughout. Use the same run/playback/rerun commands with a new output directory.
+The example ends at 1 s with a stopped engine coasting at 580 rpm, still FRESH.
+Old v0.1 recordings remain readable, but their deterministic rerun requires the
+v0.1.0 core/runtime; the importer never rewrites historical recordings.
 
 Each run contains:
 
