@@ -1,8 +1,9 @@
 # Data and timing contracts — DemoCar 0.1.0
 
-M0 implements and tests the DBC section. The event, command, model, and timer
-sections specify behavior for subsequent milestones; no corresponding runtime
-classes are implemented yet. Schema version is `1`; profile version is
+M0 implements and tests the DBC section. M1 implements the clock, throttle/RPM
+model, frames, per-receiver delivery, applied throttle commands, and event
+envelope. Offline commands, freshness deadlines and recording/rerun belong to
+M2. Schema version is `1`; profile version is
 `democar-0.1.0`. Times are nonnegative integer nanoseconds, never floats.
 
 ## Initial conditions and timing
@@ -20,7 +21,9 @@ classes are implemented yet. Schema version is `1`; profile version is
 | Base delivery delay | 0 ns, separately applied per receiver |
 | STALE age | 60,000,000 ns (60 ms) |
 | TIMEOUT age | 200,000,000 ns (200 ms) |
-| Physical RPM bounds | [0, 8000] rpm; model response is defined in M1 |
+| Encodable RPM bounds | [0, 8000] rpm |
+| Model idle / full-throttle target | 800 / 6000 rpm |
+| Model slew rate | 2000 rpm per second |
 | Seed | 0 unless explicitly provided |
 
 The first physics integration advances [0, 10 ms] at 10 ms. There is no phantom
@@ -28,6 +31,12 @@ integration step before the initial frame. Parameters are synthetic defaults,
 not real ECU timings. Period must be positive and `0 < stale_age < timeout_age`.
 Changes to run parameters require a new recorded configuration, not an
 unlogged mutation.
+
+The M1 model uses `target = idle + (maximum - idle) * throttle / 100` and moves
+toward it by at most `slew * delta_ns / 1e9` per physics tick, without overshoot.
+The engine remains physically running; engine start/stop is a later control.
+The model is noise-free. Seed is accepted and reported, but no random stream is
+consumed until a feature actually needs randomness.
 
 ## Stable scheduling and commands
 
@@ -55,6 +64,19 @@ and validated parameters. In the first slice the domain commands are
 use [start, end), with enable/disable applied in the command phase. Invalid
 commands fail visibly without modifying simulation state. Duplicate commands
 at the same time use their logged order.
+
+M1 implements only `set_throttle`. Explicit application times must align with
+the 10 ms physics grid; past or already completed earlier phases are rejected.
+If no time is specified, the core chooses the next valid input boundary and
+returns it. This prevents a mid-tick command from rewriting part of the already
+integrated physical interval. M1 exposes applied commands as events to an
+optional observer; a persisted command log is an M2 feature.
+
+The event queue is bounded (1024 pending events by default). Callback failures
+stop advancement until reset; reentrant advancement is rejected. Pause does
+not prevent controls or explicit `step_to` from operating. Simulation's `step`
+advances a 10 ms interval; reset rebuilds the model, ECU state, transport and
+counters and clears pending commands. Previous commands must be resubmitted.
 
 ## Immutable frame and per-receiver delivery
 

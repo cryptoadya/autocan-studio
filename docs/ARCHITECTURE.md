@@ -1,12 +1,13 @@
-# Architecture — M0 contract
+# Architecture — M1 headless simulator
 
-Status: specified, not implemented by M0. The only runtime functionality in M0
-is loading the packaged synthetic DBC. This document fixes boundaries for M1
-and M2; it does not claim that the simulator already satisfies them.
+Status: M1 implements the clock, physical model, sensor boundary, Engine ECU,
+immutable frames, virtual CAN delivery, KOMBI decoding, and CLI. Fault injection,
+STALE/TIMEOUT timers and recording/replay remain M2 contracts. API/UI and ML are
+not implemented.
 
 ## One process, explicit ownership
 
-The future simulator runs in one Python process. SimulationClock owns virtual
+The headless simulator runs in one Python process. SimulationClock owns virtual
 time and the event queue. VehicleModel owns physical state. The CAN transport
 does not own either one. No services, hardware, ML, or frontend are required by
 M0.
@@ -50,7 +51,7 @@ CAN ID can identify a message according to the profile; internal sender metadata
 is not an additional sensor. Future ECU connections must extend this table
 before implementation.
 
-## Responsibilities and future interfaces
+## Responsibilities and milestone boundaries
 
 - **SimulationClock**: integer `now_ns`, stable event scheduling, step/advance,
   pause, and reset. No wall-clock calculations inside the deterministic core.
@@ -63,15 +64,18 @@ before implementation.
   channel and bounded queues. Keep canonical integer times outside python-can's
   floating timestamp. Set `preserve_timestamps=True`; drain transport under
   core control. Queue overflow is a visible run error, not a simulated fault.
-- **KOMBI**: decode only its received observations; schedule freshness deadlines
-  independently of further frames. Reject malformed DLC/payload without
-  refreshing the last valid observation.
+- **KOMBI**: decode only its received observations. M1 rejects malformed
+  DLC/payload and out-of-range RPM without refreshing the last valid observation.
+  Independently scheduled freshness deadlines are added in M2.
 - **Recorder (M2)**: stream frames, per-receiver deliveries, commands, and status
   changes; record fault ground truth separately. Preserve an explicit failure
   status if recording cannot continue.
 
-Exact Python classes and scheduling implementation belong to M1. Their public
-behavior must follow [DATA_CONTRACTS.md](DATA_CONTRACTS.md).
+Implemented modules are `clock`, `vehicle`, `events`, `ecu`, `bus`, `simulation`,
+and `cli` under `backend/autocan`. Simulation composes these through a narrow
+RPM sensor port and a BusAdapter protocol. Tests use actual VirtualBus transport
+without hardware, wall-clock delays, or threads. Clock and physical-model tests
+need no I/O. Public behavior follows [DATA_CONTRACTS.md](DATA_CONTRACTS.md).
 
 ## Offline ECU and physical engine
 
@@ -99,7 +103,7 @@ change physics. Event comparison excludes run IDs and wall-clock metadata.
 
 ## Later stages
 
-M1 implements the headless chain. M2 adds offline fault, timers, JSONL, and
+M1 provides the headless chain. M2 adds offline fault, timers, JSONL, and
 rerun. M3 adds API/UI. Parquet/SQLite and ML remain later milestones. The future
 detector may read only past observations, must tick on an empty stream, and
 must be evaluated on both unseen faults and unfamiliar normal driving regimes.
