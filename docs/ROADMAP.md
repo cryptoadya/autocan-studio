@@ -58,4 +58,21 @@ headless runtime while preserving the DBC contract and M0 checks.
   the applied command log and compares semantic hash and final state.
 - Recording never overwrites a run; quota/failure/incomplete/corrupt/incompatible
   inputs are rejected explicitly. Existing M0/M1 checks remain applicable.
-- M3 API/UI, Parquet/dataset factory, extended faults and ML are not implemented.
+- M2 excludes API/UI (introduced in M3), Parquet/dataset factory, extended faults
+  and ML.
+
+## M3 acceptance boundary
+
+- Local FastAPI REST/WS and React/TypeScript/Vite dashboard, launched from a source
+  checkout with `uv run --locked autocan studio`; frontend has a pinned npm lockfile.
+- Throttle, publication-only Offline, received KOMBI RPM/freshness, one virtual-time
+  chart and a CAN Monitor for delivered frames. No physical RPM substitution.
+- Start/pause/save/reset, complete time-zero recordings, verified playback with
+  seeking and deterministic rerun through the existing M2 artifact contracts.
+- Bounded server/client histories, 50 rendered table rows, 20 Hz live batches,
+  snapshot reconnect, explicit quotas and same-origin loopback access.
+- API/core/trace integration tests, frontend state/component tests, build/typecheck,
+  and a local browser smoke of throttle, STALE/TIMEOUT, save/playback/rerun, reset,
+  socket reconnect and a 390 px mobile viewport. Screenshot: `images/m3-dashboard.png`.
+- M4 remains the versioned release and repeatable release-acceptance/demo pass.
+  No v0.1 release, deployment or remote CI success is claimed by this local work.

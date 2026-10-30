@@ -124,8 +124,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             else "recompute and compare a saved run",
         )
         command.add_argument("run_directory", type=Path)
+    studio = commands.add_parser("studio", help="build and serve the local M3 dashboard")
+    studio.add_argument("--port", type=int, default=8000)
     args = parser.parse_args(argv)
     try:
+        if args.command == "studio":
+            from autocan.api.launch import launch
+
+            return launch(port=args.port)
         if args.command == "run":
             meta = record_scenario(
                 Scenario.load(args.scenario), args.output, max_bytes=args.max_bytes
