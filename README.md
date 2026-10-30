@@ -3,7 +3,7 @@
 A local-first, synthetic CAN laboratory with a deterministic simulator and an
 independent anomaly-detection pipeline planned for later milestones.
 
-**Current scope: M3 — a working local API and dashboard.** A synthetic throttle/RPM
+**Current scope: v0.1 — the first vertical slice (M0–M4).** A synthetic throttle/RPM
 model publishes EngineStatus through an Engine ECU and an in-process python-can
 adapter. KOMBI decodes its received frames independently of physical state.
 The dashboard shows received RPM, CAN deliveries and freshness; Engine ECU Offline
@@ -15,9 +15,11 @@ later milestones.
 ## Run the dashboard
 
 Install Python 3.12, [uv 0.13.6](https://docs.astral.sh/uv/getting-started/installation/)
-and Node.js 22.12+ with npm. From the source checkout:
+and Node.js 22.12+ with npm. From a fresh source checkout:
 
 ```sh
+git clone https://github.com/cryptoadya/autocan-studio.git
+cd autocan-studio
 uv run --locked autocan studio
 ```
 
@@ -52,9 +54,15 @@ archive local runs manually to free capacity; the app never deletes them.
 The backend/frontend keep at most 200 deliveries and 400 graph points; the table
 renders the latest 50 rows. Live updates are capped at 20 Hz. Under load wall-clock
 execution may slow; integer virtual time and core calculations remain unchanged.
-This milestone does not claim a real-time performance guarantee or a v0.1 release.
+No real-time performance guarantee is claimed. Local v0.1 acceptance, its scope
+and reproducible commands are recorded in [the acceptance report](docs/V0_1_ACCEPTANCE.md).
+Release tags and GitHub publication are separate from local acceptance.
 
-![AutoCAN Studio dashboard](docs/images/m3-dashboard.png)
+[![AutoCAN Studio browser demo](docs/images/m4-demo.gif)](docs/images/m4-demo.webm)
+
+Click the animation for the full-resolution recording of the browser acceptance:
+throttle, Offline, save, playback deadlines and a matching rerun. This is a
+synthetic run; the recording is not a physical vehicle test.
 
 ## Development setup
 
@@ -86,6 +94,26 @@ npm --prefix frontend run typecheck
 npm --prefix frontend test
 npm --prefix frontend run build
 ```
+
+The browser acceptance uses the production build and a real local API/core, with
+disposable recordings. Install its pinned Chromium once, then run:
+
+```sh
+npm --prefix frontend run test:e2e:install
+npm --prefix frontend run build
+npm --prefix frontend run test:e2e
+```
+
+On Linux append `-- --with-deps` to the install command. The test starts its
+own loopback server on port 8765; keep that port free. Videos and failure
+screenshots/traces go into ignored `frontend/test-results/`. To produce a slower
+demo recording, use `AUTOCAN_DEMO=1 npm --prefix frontend run test:e2e`.
+Chromium's own sandbox stays enabled. On macOS, an application-registration
+crash in a restrictive execution sandbox requires running the browser test from
+a normal terminal or an approved execution environment.
+
+CI runs Python checks, frontend checks and this Chromium acceptance separately.
+It uploads browser artifacts; the status of a local run is not remote CI evidence.
 
 For frontend development, serve the API on loopback port 8000 with
 `uv run --locked uvicorn autocan.api:create_app --factory --host 127.0.0.1`

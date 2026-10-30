@@ -10,5 +10,5 @@ export default defineConfig({
       '/ws': { target: 'ws://127.0.0.1:8000', ws: true },
     },
   },
-  test: { environment: 'jsdom', setupFiles: ['./src/test-setup.ts'] },
+  test: { include: ['src/**/*.test.{ts,tsx}'], environment: 'jsdom', setupFiles: ['./src/test-setup.ts'] },
 })

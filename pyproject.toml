@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "autocan-studio"
-version = "0.0.1"
+version = "0.1.0"
 description = "A local-first synthetic CAN laboratory with a deterministic headless simulator"
 readme = "README.md"
 requires-python = ">=3.12"
