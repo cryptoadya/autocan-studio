@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { request, useLiveSocket } from './api'
 import { useStudio } from './store'
 import { Dashboard } from './components/Dashboard'
@@ -17,6 +17,11 @@ export function App() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
+  const playbackRequest = useRef<AbortController | null>(null)
+  useEffect(() => () => {
+    playbackRequest.current?.abort()
+    playbackRequest.current = null
+  }, [])
   const view = playback ?? live
   const isPlayback = playback !== null
   useLiveSocket(live?.id)
@@ -52,11 +57,39 @@ export function App() {
     if (!live) return
     await request(`/api/simulations/${live.id}/${path}`, method, body)
   })
-  const load = (id: string, time?: number) => perform(async () => {
-    if (live && !live.stopped && !live.state.paused) await request(`/api/simulations/${live.id}/pause`, 'POST')
-    const saved = await request<Snapshot>(`/api/runs/${id}/playback${time === undefined ? '' : `?until_ns=${time}`}`)
-    useStudio.getState().setPlayback(saved)
-  })
+  const load = async (id: string, time?: number) => {
+    playbackRequest.current?.abort()
+    const controller = new AbortController()
+    playbackRequest.current = controller
+    setBusy(true); setError(''); setNotice('')
+    try {
+      if (live && !live.stopped && !live.state.paused) {
+        await request(`/api/simulations/${live.id}/pause`, 'POST', undefined, controller.signal)
+      }
+      if (controller.signal.aborted) return
+      const saved = await request<Snapshot>(
+        `/api/runs/${id}/playback${time === undefined ? '' : `?until_ns=${time}`}`,
+        'GET', undefined, controller.signal,
+      )
+      if (!controller.signal.aborted) useStudio.getState().setPlayback(saved)
+    } catch (e) {
+      if (!controller.signal.aborted) setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      // A cancelled load must not clear the busy state of a newer operation.
+      if (playbackRequest.current === controller) {
+        playbackRequest.current = null
+        setBusy(false)
+      }
+    }
+  }
+  const returnToLive = () => {
+    if (playbackRequest.current) {
+      playbackRequest.current.abort()
+      playbackRequest.current = null
+      setBusy(false)
+    }
+    useStudio.getState().setPlayback(null)
+  }
   const disabled = busy || loading || isPlayback || !live || live.stopped || !connected
   return <>
     <header><div className="brand"><span className="brand-mark" aria-hidden="true">A<span>/</span>C</span>
@@ -85,7 +118,7 @@ export function App() {
       <SignalChart signals={view?.signals ?? []} now={view?.sim_time_ns ?? 0} />
       <CanMonitor key={`${view?.id}-${view?.mode}`} frames={view?.frames ?? []} skipped={skipped} />
       <Recordings runs={runs} view={view} busy={busy} onLoad={load}
-        onLive={() => useStudio.getState().setPlayback(null)}
+        onLive={returnToLive}
         onRerun={id => perform(async () => {
           const result = await request<{matches: boolean; event_count: number}>(`/api/runs/${id}/rerun`, 'POST')
           if (!result.matches) throw new Error('Rerun did not match the recording')

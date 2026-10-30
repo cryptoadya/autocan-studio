@@ -2,6 +2,9 @@
 
 ## Unreleased — M3 first working UI
 
+- Cancel pending playback loads on return to live; ignore stale responses/errors
+  so they cannot switch the UI back or interfere with a newer operation.
+
 - Add a loopback FastAPI REST/WebSocket API over the deterministic headless core.
 - Add a React/TypeScript/Vite dashboard with received KOMBI RPM/freshness, throttle,
   Engine ECU Offline, a bounded RPM chart and delivered CAN Monitor.
