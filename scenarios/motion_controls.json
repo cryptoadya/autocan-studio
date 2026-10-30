@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "duration_ns": 4500000000,
+  "seed": 42,
+  "commands": [
+    {"at_ns": 0, "kind": "set_brake", "percent": 100},
+    {"at_ns": 0, "kind": "set_gear", "gear": "D"},
+    {"at_ns": 0, "kind": "set_throttle", "percent": 60},
+    {"at_ns": 200000000, "kind": "set_brake", "percent": 0},
+    {"at_ns": 2000000000, "kind": "set_gear", "gear": "R"},
+    {"at_ns": 2500000000, "kind": "set_brake", "percent": 100},
+    {"at_ns": 3500000000, "kind": "set_gear", "gear": "R"},
+    {"at_ns": 3600000000, "kind": "set_brake", "percent": 0}
+  ]
+}

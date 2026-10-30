@@ -3,15 +3,16 @@
 A local-first, synthetic CAN laboratory with a deterministic simulator and an
 independent anomaly-detection pipeline planned for later milestones.
 
-**Current development: M5 engine controls; released baseline: v0.1.0 (M0–M4).**
+**Current development: M5 engine/motion controls; released baseline: v0.1.0 (M0–M4).**
 A synthetic throttle/RPM
 model publishes EngineStatus through an Engine ECU and an in-process python-can
 adapter. KOMBI decodes its received frames independently of physical state.
 The dashboard shows received RPM, CAN deliveries and freshness; Engine ECU Offline
 stops publication while physics continues. Runs can be saved, played back and
 recomputed. The first M5 pass adds ignition and physical Start/Stop while keeping
-ECU publication independent. ABS/Transmission/Body, brake/gear/speed and the
-expanded CAN profile remain subsequent M5 work. This is a synthetic laboratory,
+ECU publication independent. Motion controls add brake, P/R/N/D and a separately
+labelled physical speed readout. ABS/Transmission/Body and the expanded CAN
+profile remain subsequent M5 work. This is a synthetic laboratory,
 not an OEM emulator or a physical
 vehicle diagnostic tool. Additional ECU, the fault library, datasets and ML remain
 later milestones.
@@ -54,6 +55,15 @@ These controls also work while Engine ECU is offline; KOMBI refreshes only when
 CAN publication resumes.
 
 ![M5 engine stopped with fresh zero RPM](docs/images/m5-engine-controls.png)
+
+To drive, apply at least 10% **Brake**, select **D**, then release the brake and
+increase throttle. **N** coasts; full brake stops and holds against full throttle.
+Select P/R/D only while stopped with brake applied; unsafe requests are reported
+without interrupting the run. **R** produces negative signed speed. The separate
+**Motion / Physical model** panel shows model speed, not a received CAN signal.
+KOMBI RPM remains CAN-only and can be stale while the model is moving.
+
+![M5 reverse motion while Engine ECU is offline](docs/images/m5-motion-controls.png)
 
 The dashboard uses KOMBI RPM, including when its last observation is stale. It
 never substitutes physical model RPM. A reload or WebSocket reconnect restores
@@ -150,7 +160,8 @@ complete recording. Events are not accumulated in memory by the simulator.
 Physics is noise-free; controlled delivery loss uses its own seeded RNG stream.
 
 The shell accepts one command per line and prints JSON state after each valid
-command: `throttle PERCENT`, `ignition OFF|ACC|ON|START`, `engine start`, `engine stop`,
+command: `throttle PERCENT`, `brake PERCENT`, `gear P|R|N|D`,
+`ignition OFF|ACC|ON|START`, `engine start`, `engine stop`,
 `run MILLISECONDS`, `offline`, `online`, `pause`, `resume`, `step`,
 `reset`, `state`, `quit`. `run` is relative to the current virtual time and does
 not advance while paused. `step` advances 10 ms even while paused, preserving
@@ -188,9 +199,15 @@ The example ends at 1 s with a stopped engine coasting at 580 rpm, still FRESH.
 Old v0.1 recordings remain readable, but their deterministic rerun requires the
 v0.1.0 core/runtime; the importer never rewrites historical recordings.
 
+`scenarios/motion_controls.json` demonstrates acceleration, a rejected reverse
+request while moving, braking to a stop and a valid reverse selection. It records
+model speed changes as well as CAN events; playback restores the recorded speed
+without running physics, and rerun recomputes and compares the full stream.
+
 Each run contains:
 
-- `events.jsonl`: immutable frames, deliveries and ECU status changes;
+- `events.jsonl`: immutable frames, deliveries, ECU status changes and explicitly
+  identified physical model speed samples;
 - `commands.jsonl`: applied commands with their canonical times and order;
 - `faults.jsonl`: offline intervals and actual drop markers, separate from observations;
 - `profile.dbc`: the profile snapshot;

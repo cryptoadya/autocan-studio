@@ -1,9 +1,14 @@
 export type Freshness = 'UNAVAILABLE' | 'FRESH' | 'STALE' | 'TIMEOUT'
 export type IgnitionRequest = 'OFF' | 'ACC' | 'ON' | 'START'
+export type Gear = 'P' | 'R' | 'N' | 'D'
 export interface SimState {
   sim_time_ns: number
   paused: boolean
   throttle_percent: number
+  brake_percent?: number
+  gear?: Gear
+  shift_rejection?: 'vehicle_moving' | 'brake_required' | null
+  physical_speed_kph?: number
   kombi_rpm: number | null
   kombi_status: Freshness
   engine_running: boolean

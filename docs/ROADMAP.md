@@ -106,5 +106,20 @@ See [v0.1 acceptance](V0_1_ACCEPTANCE.md) for executed checks and limitations.
 - `scenarios/engine_start_stop.json` and `images/m5-engine-controls.png` demonstrate
   this pass. Local unit/integration and browser verification accompanies it;
   remote CI requires a separately authorized push.
-- M5 remains in progress: ABS/DSC, Transmission, Body, brake/gear/speed, expanded
-  DBC/subscriptions, KOMBI signal availability and normal urban drive remain.
+- This part establishes engine controls; the motion continuation is described
+  below. M5 remains in progress until the full ECU network acceptance is complete.
+
+## M5 motion controls
+
+- Deterministic longitudinal motion, brake, P/R/N/D, directional speed limits,
+  coasting and speed/gear-dependent running RPM, preserving parked RPM behavior.
+- Physical interlocks reject unsafe shifts visibly without stopping simulation;
+  controls and accepted/rejected results are recorded on the canonical input grid.
+- CLI/API/UI controls, explicit model-speed display, recorded motion samples,
+  verified playback without physics and deterministic rerun. KOMBI RPM stays CAN-only.
+- `scenarios/motion_controls.json` and `images/m5-motion-controls.png` demonstrate
+  this scope; regression/browser checks cover drive/coast/brake/reverse, rejected
+  shifts, Offline isolation and saved speed. Remote CI requires an authorized push.
+- Still remaining in M5: ABS/DSC, Transmission and Body ECU, expanded DBC and
+  subscriptions, CAN speed/temperature/availability in KOMBI, and full-network
+  normal urban drive acceptance. This part does not mark M5 complete.

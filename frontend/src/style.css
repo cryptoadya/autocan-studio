@@ -52,6 +52,17 @@ p { margin: 0; }
 .status.stale { color: #ffce82; border-color: #9d7844; }
 .status.timeout { color: #ffb3a5; border-color: #a9675c; }
 .driver-panel { padding: 24px 28px; }
+.motion-controls { padding: 22px; margin-bottom: 20px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
+.motion-controls h2 { margin: 0 0 20px; font-size: 15px; }
+.motion-controls h2 span { color: #708078; font-size: 12px; font-weight: 400; margin-left: 10px; }
+.motion-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
+.motion-grid > div { min-width: 0; }
+.motion-speed { font: 36px ui-monospace, monospace; color: #174d3b; margin: 10px 0; }
+.motion-speed small { font-size: 14px; color: #708078; }
+.brake-label { display: flex; justify-content: space-between; margin: 0 0 20px; font-size: 14px; }
+.gear-label { display: block; margin-bottom: 10px; font-size: 14px; }
+.motion-grid .help { line-height: 1.6; margin-top: 12px; }
+.shift-rejection { color: #96561c; font-size: 12px; margin-top: 10px; line-height: 1.6; }
 .physical-engine-controls { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
 .physical-engine-controls p { font-size: 12px; margin: 0 0 10px; color: #536a5a; }
 .physical-engine-controls label { display: block; font-size: 11px; margin-bottom: 6px; color: #708078; }
@@ -132,6 +143,7 @@ footer { display: flex; justify-content: space-between; gap: 12px; color: #82928
   .run-actions { gap: 5px; flex-wrap: wrap; }
   button { font-size: 11px; padding: 8px 10px; }
   .dashboard { grid-template-columns: 1fr; }
+  .motion-grid { grid-template-columns: 1fr; }
   .rpm-panel, .driver-panel { padding: 22px; }
   .ecu-panel { grid-column: auto; padding: 20px 22px; }
   .help { margin-top: 15px; max-width: none; }

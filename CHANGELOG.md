@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — M5 motion controls
+
+- Add brake, P/R/N/D, longitudinal speed, coasting, directional caps and moving
+  RPM coupling. Preserve the original parked throttle and physical engine controls.
+- Reject unsafe gear requests with recorded results rather than aborting the run;
+  validate and reserve whole API input batches with brake applied before gear.
+- Record explicit physical speed samples and motion settings; playback restores
+  samples without physics and rerun compares the full canonical stream.
+- Add CLI/API/UI controls, a separate labelled physical-model panel, an original
+  motion scenario, a screenshot and model/core/import/API/browser regression tests.
+- Keep the EngineStatus DBC and CAN-only KOMBI RPM chain. Additional ECU, CAN
+  speed/temperature, expanded DBC and full-network acceptance remain within M5.
+
 ## Unreleased — M5 physical engine controls (first pass)
 
 - Add ignition OFF/ACC/ON/START and physical Start/Stop without suppressing Engine

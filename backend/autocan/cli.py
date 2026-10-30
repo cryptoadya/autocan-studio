@@ -62,7 +62,8 @@ def _event(event: RunEvent) -> None:
 def _shell(sim: Simulation) -> int:
     if sys.stdin.isatty():
         print(
-            "Commands: throttle PERCENT, run MILLISECONDS, offline, online, "
+            "Commands: throttle PERCENT, brake PERCENT, gear P|R|N|D, "
+            "run MILLISECONDS, offline, online, "
             "ignition OFF|ACC|ON|START, engine start|stop, pause, resume, step, reset, state, quit",
             file=sys.stderr,
         )
@@ -74,6 +75,10 @@ def _shell(sim: Simulation) -> int:
             match parts:
                 case ["throttle", value]:
                     sim.set_throttle(_throttle(value))
+                case ["brake", value]:
+                    sim.set_brake(float(value))
+                case ["gear", value]:
+                    sim.set_gear(value)
                 case ["run", value]:
                     now = sim.state()["sim_time_ns"]
                     assert isinstance(now, int)

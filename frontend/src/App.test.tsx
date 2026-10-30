@@ -31,6 +31,20 @@ beforeEach(() => {
 })
 afterEach(() => {vi.unstubAllGlobals(); useStudio.getState().clear()})
 
+test('replacing a run leaves exactly one vehicle dashboard and one motion panel', async () => {
+  vi.stubGlobal('fetch', async (path: string) => {
+    if (path === '/api/simulations/current') return Response.json(live)
+    if (path === '/api/runs') return Response.json([])
+    throw new Error(`Unexpected request: ${path}`)
+  })
+  render(<App />)
+  await waitFor(() => expect(useStudio.getState().live?.id).toBe('live-run'))
+  act(() => useStudio.getState().adopt({...live, id: 'new-run'}))
+  expect(screen.getAllByRole('region', {name: 'Vehicle dashboard'})).toHaveLength(1)
+  expect(screen.getAllByRole('region', {name: 'Motion · physical model'})).toHaveLength(1)
+  expect(screen.getAllByRole('slider', {name: 'Throttle'})).toHaveLength(1)
+})
+
 test.each(['response', 'error'])('returning to live ignores a late playback %s', async outcome => {
   let resolveResponse!: (response: Response) => void
   let rejectResponse!: (error: Error) => void

@@ -8,6 +8,38 @@ Schema version is `1`; profile version is
 
 ## Initial conditions and timing
 
+### M5 motion-control extension
+
+VehicleModel owns signed physical speed (forward positive, reverse negative),
+actual P/R/N/D selection and brake input. Initial state is P, 0 km/h and 0% brake;
+the original parked throttle/RPM behavior remains unchanged. Default drive
+acceleration is 3 m/s² times throttle, brake deceleration is 8 m/s² times brake,
+and rolling resistance is 0.15 m/s² opposing movement. N coasts without drive;
+P holds still. Braking/drag cannot reverse motion. Forward/reverse limits are
+180/30 km/h. A stopped engine supplies no drive; it can still coast and brake.
+
+Changing to P, R or D requires speed magnitude <=0.5 km/h and brake >=10%; N is
+always selectable. Repeating the current gear is idempotent. Accepted P/R/D
+selection settles the stationary residual speed to zero. Rejected shifts leave
+gear/speed unchanged, log an explicit result and do not stop simulation time.
+Running RPM in D/R targets idle + |speed km/h| × 40/80 + throttle × 8, capped at
+the existing maximum and approached with the existing slew rate. These are
+synthetic coefficients, not an automatic gearbox or a physical torque model.
+
+`set_brake(percent)` and `set_gear(gear)` use the canonical input grid. Gear
+InputApplied records additionally contain `accepted` and nullable `reason`.
+`PhysicalMotionUpdated` records `physical_speed_kph` when it changes; it is model
+telemetry, not a CAN observation. The dashboard labels this speed separately,
+while received KOMBI RPM still comes only from CAN. Playback reads recorded
+speed samples without computing physics. The manifest records motion settings
+and initial physical state. The current RPM DBC/profile remains unchanged.
+
+| Added control/state | Owner | Permitted access |
+| --- | --- | --- |
+| Brake and requested gear | DriverInput | VehicleModel through queued validated commands; explicit applied-result log |
+| Actual gear and physical speed | VehicleModel | Physical-model display/trace only in this pass; no direct access by KOMBI |
+| Running RPM coupled to movement | VehicleModel | Existing permitted Engine RPM sensor -> EngineStatus -> KOMBI |
+
 ### M5 engine-control extension
 
 Initial ignition is ON with the physical engine running at 800 rpm. Supported
@@ -59,7 +91,7 @@ unlogged mutation.
 The M1 model uses `target = idle + (maximum - idle) * throttle / 100` and moves
 toward it by at most `slew * delta_ns / 1e9` per physics tick, without overshoot.
 M5 adds the explicit engine/ignition controls described above; absent these
-commands, the original throttle trajectory remains unchanged.
+and motion commands, the original parked throttle trajectory remains unchanged.
 The model is noise-free. Seed is accepted and reported, but no random stream is
 consumed by physics. M2 uses `sha256("autocan-rng-v1:{seed}:{stream}")` to derive
 independent `physics`, `scenario` and `delivery` seeds. Only delivery loss uses
@@ -269,9 +301,9 @@ valid: their scheduled future receptions are outside that recorded time range.
 ## M3 local API and live display
 
 The recording schema/core/profile versions are unchanged. API/WS display schema
-version is `1`. The API exposes DemoCar, throttle, M5 ignition/physical engine
-controls and the Offline publication fault; brake, gear, ML and profile editing
-are not accepted in the engine-control pass.
+version is `1`. The API exposes DemoCar, throttle/brake/gear, ignition/physical
+engine controls and the Offline publication fault. ML and profile editing are
+not exposed.
 
 | Endpoint | Behavior |
 | --- | --- |
@@ -280,7 +312,7 @@ are not accepted in the engine-control pass.
 | `GET /api/simulations/current` | Current snapshot or `null`, for page reload |
 | `GET /api/simulations/{id}/state` | Current display snapshot, excluding physical RPM |
 | `POST /api/simulations/{id}/start`, `/pause`, `/stop`, `/reset` | Resume, pause, finalize, or finalize and allocate a fresh run |
-| `PATCH /api/simulations/{id}/inputs` | Nonempty subset of `{throttle: 50, ignition: "ON", engine_running: true}`; validated controls, returns canonical `applied_at_ns` |
+| `PATCH /api/simulations/{id}/inputs` | Nonempty subset of `{throttle: 0, brake: 100, gear: "D", ignition: "ON", engine_running: true}`; validated controls, returns canonical `applied_at_ns` |
 | `POST /api/simulations/{id}/faults` | `{offline: true}`; publication only, returns canonical `applied_at_ns` |
 | `GET /api/runs` | Up to 64 complete, verified server-style UUID recordings |
 | `GET /api/runs/{id}/playback?until_ns=N` | Bounded display snapshot through N (default: recorded end); verified saved events only |
@@ -289,11 +321,20 @@ are not accepted in the engine-control pass.
 Payloads reject unknown fields, boolean seeds/throttle and non-boolean Offline.
 Inputs are queued, not applied by HTTP receipt; a paused run applies them after
 resume. Explicit null inputs and empty requests are rejected. A multi-field
-batch applies throttle, ignition, then physical engine control at the same input
+batch applies throttle, brake, gear, ignition, then physical engine control at the same input
 boundary; the entire command quota is reserved before any part is queued. Each
 field counts as one applied command. Stop finalizes only applied commands. A never-started run processes its
 first 10 ms step before saving so the recording contains initial events. Reset
 retains the seed, restores initial conditions and returns a new run identity.
+
+Live and saved display state additionally includes `brake_percent`, actual `gear`,
+nullable `shift_rejection`, and signed `physical_speed_kph`. The last field is
+explicitly physical model telemetry, never a KOMBI/CAN speed measurement. Model
+speed is integrated in m/s rounded to 12 decimal places; canonical km/h samples
+are rounded to 9 places. Playback consumes only saved samples and command results.
+Older recordings without motion commands retain their original stationary P
+state. New recordings use core version `m5-motion-1` and store the motion model
+version/settings in their manifest; old-core rerun still requires the old core.
 Saved-run identifiers are UUID hex strings, not filesystem paths. Failed or
 incomplete recordings are omitted from the saved-run selector; they still consume
 local disk capacity and are never deleted automatically.

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { request, useLiveSocket } from './api'
 import { useStudio } from './store'
 import { Dashboard } from './components/Dashboard'
+import { MotionControls } from './components/MotionControls'
 import { SignalChart } from './components/SignalChart'
 import { CanMonitor } from './components/CanMonitor'
 import { Recordings } from './components/Recordings'
@@ -117,6 +118,9 @@ export function App() {
         onIgnition={ignition => command('inputs', 'PATCH', {ignition})}
         onEngineRunning={engine_running => command('inputs', 'PATCH', {engine_running})}
         onOffline={offline => command('faults', 'POST', {offline})} />
+      <MotionControls key={`motion-${view?.id}`} state={view?.state} disabled={disabled}
+        onBrake={brake => command('inputs', 'PATCH', {brake})}
+        onGear={gear => command('inputs', 'PATCH', {gear})} />
       <SignalChart signals={view?.signals ?? []} now={view?.sim_time_ns ?? 0} />
       <CanMonitor key={`${view?.id}-${view?.mode}`} frames={view?.frames ?? []} skipped={skipped} />
       <Recordings runs={runs} view={view} busy={busy} onLoad={load}

@@ -2,6 +2,7 @@
 
 import math
 from collections.abc import Callable
+from dataclasses import asdict
 from hashlib import sha256
 from random import Random
 from types import TracebackType
@@ -12,7 +13,13 @@ from autocan.bus import BusAdapter, VirtualCanAdapter
 from autocan.clock import Phase, SimulationClock, validate_time
 from autocan.ecu import EngineEcu, Kombi, KombiState
 from autocan.events import RunEvent, Scalar
-from autocan.vehicle import VehicleModel, validate_ignition, validate_throttle
+from autocan.vehicle import (
+    VehicleModel,
+    validate_brake,
+    validate_gear,
+    validate_ignition,
+    validate_throttle,
+)
 
 PHYSICS_TICK_NS = 10_000_000
 PUBLICATION_PERIOD_NS = 20_000_000
@@ -80,7 +87,9 @@ class Simulation:
             self._on_event(RunEvent(self._run_id, self._event_seq, self._clock.now_ns, kind, data))
 
     def _physics_tick(self) -> None:
+        before = self._vehicle.speed_kph
         self._vehicle.tick(PHYSICS_TICK_NS)
+        self._motion_changed(before)
         self._clock.schedule(
             self._clock.now_ns + PHYSICS_TICK_NS, Phase.PHYSICS, self._physics_tick
         )
@@ -234,6 +243,48 @@ class Simulation:
 
         return self._queue_input(at_ns, apply)
 
+    def _motion_changed(self, before: float) -> None:
+        if self._vehicle.speed_kph != before:
+            self._emit("PhysicalMotionUpdated", physical_speed_kph=self._vehicle.speed_kph)
+
+    def set_brake(self, percent: float, *, at_ns: int | None = None) -> int:
+        self._check_open()
+        validate_brake(percent)
+
+        def apply() -> None:
+            self._vehicle.set_brake(percent)
+            self._command_seq += 1
+            self._emit(
+                "InputApplied",
+                command_seq=self._command_seq,
+                applied_at_ns=self._clock.now_ns,
+                command_kind="set_brake",
+                percent=float(percent),
+            )
+
+        return self._queue_input(at_ns, apply)
+
+    def set_gear(self, gear: str, *, at_ns: int | None = None) -> int:
+        self._check_open()
+        validate_gear(gear)
+
+        def apply() -> None:
+            before = self._vehicle.speed_kph
+            accepted = self._vehicle.set_gear(gear)
+            self._command_seq += 1
+            self._emit(
+                "InputApplied",
+                command_seq=self._command_seq,
+                applied_at_ns=self._clock.now_ns,
+                command_kind="set_gear",
+                gear=gear,
+                accepted=accepted,
+                reason=self._vehicle.shift_rejection,
+            )
+            self._motion_changed(before)
+
+        return self._queue_input(at_ns, apply)
+
     def _queue_input(self, at_ns: int | None, apply: Callable[[], None]) -> int:
         if at_ns is None:
             at_ns = (
@@ -263,6 +314,8 @@ class Simulation:
             "timeout_after_ns": 200_000_000,
             "rng_streams": rng_stream_seeds(self._seed),
             "rng_algorithm": "sha256-namespaced-v1/python.Random",
+            "motion": asdict(self._vehicle.motion_config),
+            "motion_model_version": "simple-longitudinal-v1",
         }
 
     def advance_to(self, target_ns: int) -> None:
@@ -287,6 +340,10 @@ class Simulation:
             "paused": self._clock.paused,
             "seed": self._seed,
             "throttle_percent": self._vehicle.throttle_percent,
+            "brake_percent": self._vehicle.brake_percent,
+            "gear": self._vehicle.gear,
+            "shift_rejection": self._vehicle.shift_rejection,
+            "physical_speed_kph": self._vehicle.speed_kph,
             "physical_rpm": self._vehicle.rpm,
             "kombi_rpm": self._kombi.state.rpm,
             "kombi_status": self._kombi.state.status,

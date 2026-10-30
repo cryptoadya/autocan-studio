@@ -49,7 +49,7 @@ def test_api_stop_keeps_fresh_can_and_saved_physical_control_state(tmp_path: Pat
         {"ignition": True},
         {"throttle": None},
         {"engine_running": True, "ignition": None},
-        {"brake": 10},
+        {"physical_speed_kph": 10},
     ],
 )
 def test_api_rejects_invalid_controls_before_queueing(tmp_path: Path, body: object) -> None:
