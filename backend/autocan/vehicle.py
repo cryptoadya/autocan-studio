@@ -103,6 +103,7 @@ class VehicleModel:
         self._brake = 0.0
         self._gear = "P"
         self._shift_rejection: str | None = None
+        self._coolant_c = 20.0
 
     @property
     def rpm(self) -> float:
@@ -127,6 +128,14 @@ class VehicleModel:
     @property
     def motion_config(self) -> MotionConfig:
         return self._motion_config
+
+    @property
+    def coolant_c(self) -> float:
+        return self._coolant_c
+
+    @property
+    def wheel_speeds_kph(self) -> tuple[float, float, float, float]:
+        return (self.speed_kph,) * 4
 
     @property
     def brake_percent(self) -> float:
@@ -205,7 +214,14 @@ class VehicleModel:
 
     def tick(self, delta_ns: int) -> None:
         validate_time(delta_ns)
-        self._motion_tick(delta_ns / 1_000_000_000)
+        seconds = delta_ns / 1_000_000_000
+        self._motion_tick(seconds)
+        self._coolant_c = round(
+            min(90.0, self._coolant_c + 0.2 * seconds)
+            if self._engine_running
+            else max(20.0, self._coolant_c - 0.05 * seconds),
+            9,
+        )
         target = (
             self._idle_rpm + (self._max_rpm - self._idle_rpm) * self._throttle / 100
             if self._engine_running

@@ -1,12 +1,64 @@
-# Data and timing contracts — DemoCar 0.1.0
+# Data and timing contracts — DemoCar 0.1.0 / 0.2.0
 
 M0 implements and tests the DBC section. M1 implements the clock, throttle/RPM
 model, frames, per-receiver delivery, applied throttle commands, and event
 envelope. M2 implements Offline, freshness deadlines and recording/rerun.
 Schema version is `1`; profile version is
-`democar-0.1.0`. Times are nonnegative integer nanoseconds, never floats.
+`democar-0.1.0` for legacy and `democar-0.2.0` for the M5 network. Times are
+nonnegative integer nanoseconds, never floats.
 
 ## Initial conditions and timing
+
+### M5 versioned ECU network
+
+The original `democar` / `democar-0.1.0` profile stays available for legacy
+callers and recordings. `democar-network` / `democar-0.2.0` extends the synthetic
+network with five ECU and a separate CAN observer. Both profiles use the same
+physical model, integer clock and immutable frame/per-receiver delivery contracts.
+
+| Publisher | Message / ID | Period | Subscribers, excluding the observer |
+| --- | --- | --- | --- |
+| Engine | EngineStatus / 0x200 | 20 ms | KOMBI, Transmission |
+| Engine | EngineTelemetry / 0x201 | 100 ms | KOMBI, Transmission, Body |
+| ABS/DSC | WheelSpeeds / 0x210 | 20 ms | KOMBI, Transmission |
+| ABS/DSC | AbsStatus / 0x211 | 100 ms | KOMBI |
+| Transmission | TransmissionState / 0x220 | 100 ms | KOMBI |
+| Body | BodyState / 0x230 | 100 ms | KOMBI, Engine, ABS/DSC, Transmission |
+| Body | DriverInput / 0x231 | 20 ms | ABS/DSC, Transmission |
+| KOMBI | ClusterHeartbeat / 0x240 | 100 ms | Engine, Body |
+
+Every message is also delivered independently to `observer`. It has no physical
+sensor input. ECU ports and subscriptions are explicit:
+
+| ECU | Permitted physical/control port | CAN-only inputs and owned derived state |
+| --- | --- | --- |
+| Engine | RPM, throttle, coolant temperature, engine-on | Body/cluster link freshness |
+| ABS/DSC | Four wheel speeds | Driver brake, Body presence; wheel consistency and input availability |
+| Body | Ignition and driver throttle/brake/gear requests | Engine/cluster presence |
+| Transmission | Validated physical gear actuator only | RPM, wheel speed, driver request/brake/throttle, Body; shift FSM |
+| KOMBI | None | RPM, signed speed, temperature, gear, ignition, consistency and per-message freshness |
+
+Network gear commands are queued driver requests, published by Body and applied
+by Transmission only after CAN reception. Fresh required inputs and the physical
+stationary/brake interlocks govern P/R/D; N remains freely selectable. Rejections
+are explicit results and do not stop the clock. Loss/delay may therefore change
+gear application and the physical trajectory in this profile; no such feedback
+is introduced into the legacy profile.
+
+Network `InputApplied(set_gear)` records `request_sequence`; `GearShiftEvaluated`
+records that sequence, requested/actual gear, acceptance and nullable reason
+(`vehicle_moving`, `brake_required`, `inputs_unavailable`). Rejected requests must
+be resubmitted with a new sequence; they are not silently retried.
+`set_ecu_publishing` requires a known `ecu_id` and boolean `enabled`.
+
+Each subscribed message becomes STALE after 3 periods and TIMEOUT after 10,
+independently of other bus traffic. Never-received messages stay UNAVAILABLE
+until their initial timeout. Delivery at a deadline wins over that deadline.
+Publication-only Offline can target each ECU; Engine Offline suppresses both
+its messages while physical RPM/temperature continue. It does not stop ECU RX.
+Wheel speeds are equal signed speeds in this straight-line/no-slip model;
+coolant warms from 20 toward 90 °C at 0.2 °C/s when running and cools toward
+20 °C at 0.05 °C/s when stopped. These are synthetic demonstration parameters.
 
 ### M5 motion-control extension
 
@@ -27,7 +79,7 @@ the existing maximum and approached with the existing slew rate. These are
 synthetic coefficients, not an automatic gearbox or a physical torque model.
 
 `set_brake(percent)` and `set_gear(gear)` use the canonical input grid. Gear
-InputApplied records additionally contain `accepted` and nullable `reason`.
+InputApplied records in the legacy profile contain `accepted` and nullable `reason`.
 `PhysicalMotionUpdated` records `physical_speed_kph` when it changes; it is model
 telemetry, not a CAN observation. The dashboard labels this speed separately,
 while received KOMBI RPM still comes only from CAN. Playback reads recorded
@@ -300,20 +352,21 @@ valid: their scheduled future receptions are outside that recorded time range.
 
 ## M3 local API and live display
 
-The recording schema/core/profile versions are unchanged. API/WS display schema
-version is `1`. The API exposes DemoCar, throttle/brake/gear, ignition/physical
+The recording and API/WS envelope schema remains `1`; new recordings use core
+`m5-network-1` and the selected profile version. The API exposes both DemoCar
+profiles, throttle/brake/gear, ignition/physical
 engine controls and the Offline publication fault. ML and profile editing are
 not exposed.
 
 | Endpoint | Behavior |
 | --- | --- |
 | `GET /api/health`, `/api/profiles` | Local readiness and DemoCar identity |
-| `POST /api/simulations` | `{profile_id: "democar", seed: 42}`; fresh paused recording; one active run |
+| `POST /api/simulations` | `{profile_id: "democar-network", seed: 42}`; fresh paused recording; one active run; omitted profile defaults to legacy `democar` |
 | `GET /api/simulations/current` | Current snapshot or `null`, for page reload |
 | `GET /api/simulations/{id}/state` | Current display snapshot, excluding physical RPM |
 | `POST /api/simulations/{id}/start`, `/pause`, `/stop`, `/reset` | Resume, pause, finalize, or finalize and allocate a fresh run |
 | `PATCH /api/simulations/{id}/inputs` | Nonempty subset of `{throttle: 0, brake: 100, gear: "D", ignition: "ON", engine_running: true}`; validated controls, returns canonical `applied_at_ns` |
-| `POST /api/simulations/{id}/faults` | `{offline: true}`; publication only, returns canonical `applied_at_ns` |
+| `POST /api/simulations/{id}/faults` | `{offline: true, ecu_id: "abs"}`; publication only, returns canonical `applied_at_ns`; omitted ECU targets Engine |
 | `GET /api/runs` | Up to 64 complete, verified server-style UUID recordings |
 | `GET /api/runs/{id}/playback?until_ns=N` | Bounded display snapshot through N (default: recorded end); verified saved events only |
 | `POST /api/runs/{id}/rerun` | Fresh computation using M2 compatibility/integrity checks |
@@ -325,7 +378,7 @@ batch applies throttle, brake, gear, ignition, then physical engine control at t
 boundary; the entire command quota is reserved before any part is queued. Each
 field counts as one applied command. Stop finalizes only applied commands. A never-started run processes its
 first 10 ms step before saving so the recording contains initial events. Reset
-retains the seed, restores initial conditions and returns a new run identity.
+retains seed/profile, restores initial conditions and returns a new run identity.
 
 Live and saved display state additionally includes `brake_percent`, actual `gear`,
 nullable `shift_rejection`, and signed `physical_speed_kph`. The last field is
@@ -333,7 +386,7 @@ explicitly physical model telemetry, never a KOMBI/CAN speed measurement. Model
 speed is integrated in m/s rounded to 12 decimal places; canonical km/h samples
 are rounded to 9 places. Playback consumes only saved samples and command results.
 Older recordings without motion commands retain their original stationary P
-state. New recordings use core version `m5-motion-1` and store the motion model
+state. New recordings use core version `m5-network-1` and store the motion model
 version/settings in their manifest; old-core rerun still requires the old core.
 Saved-run identifiers are UUID hex strings, not filesystem paths. Failed or
 incomplete recordings are omitted from the saved-run selector; they still consume
@@ -346,12 +399,18 @@ bounded view; subsequent batches contain only newer delivered frames and sampled
 points plus current state. `seq` restarts at 1 per connection, while frame records
 retain their canonical publication `event_seq` and `frame_id`. Frame display time
 is receiver delivery time, not frame creation time. The `rpm` column is decoded
-from the delivered payload. Signals contain virtual time, last received RPM and
+from the delivered payload (nullable for non-RPM messages). Network rows also
+contain `message_name`, `decoded`, `receiver_id` and contiguous `display_seq` for
+observer deliveries. Publication ID gaps caused by transport loss do not count
+as live display skips. Network state adds CAN speed, temperature, gear, ignition,
+consistency and independent freshness statuses, plus publication flags/counters.
+These flags never supply availability to the ECU.
+Signals contain virtual time, last received RPM and
 freshness status; stale values are drawn with dashed lines.
 
 There is no per-client event backlog. At most 8 WS clients are allowed; a send
 blocked for 1 s disconnects. A client must replace its view with the reconnect
-snapshot. The server reports any skipped display frame IDs; it does not drop
+snapshot. The server reports any skipped display deliveries; it does not drop
 canonical recording events. Commands/fault ground truth remain in their separate
 M2 artifacts. A recording quota failure stops the run rather than losing events.
 

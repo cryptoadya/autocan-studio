@@ -13,12 +13,21 @@ from pathlib import Path
 from types import TracebackType
 from typing import BinaryIO, Self
 
+from autocan.dbc import profile_bytes, profile_from_version, profile_version
 from autocan.events import CanFrame, RunEvent, Scalar
+from autocan.network_profile import (
+    ECU_IDS,
+    GEARS,
+    PLAN_BY_ID,
+    PLAN_BY_NAME,
+    RECEIVERS,
+    SHIFT_REASONS,
+)
 from autocan.scenarios import MAX_COMMANDS, Scenario, ScenarioCommand, command_parameter
 from autocan.simulation import Simulation
 from autocan.validation import canonical_bytes, fields, integer, json_object, number, object_value
 
-CORE_VERSION = "m5-motion-1"
+CORE_VERSION = "m5-network-1"
 DEFAULT_MAX_BYTES = 16 * 1024 * 1024
 MAX_MANIFEST_BYTES = 64 * 1024
 MAX_LINE_BYTES = 64 * 1024
@@ -47,8 +56,8 @@ def _semantic(record: dict[str, object]) -> bytes:
     return canonical_bytes({k: v for k, v in record.items() if k != "run_id"}) + b"\n"
 
 
-def _profile_bytes() -> bytes:
-    return files("autocan").joinpath("profiles/democar.dbc").read_bytes()
+def _profile_bytes(profile_id: str = "democar") -> bytes:
+    return profile_bytes(profile_id)
 
 
 def _core_hash() -> str:
@@ -62,6 +71,10 @@ def _core_hash() -> str:
         "simulation",
         "scenarios",
         "validation",
+        "dbc",
+        "network_profile",
+        "network_ecu",
+        "network_runtime",
     ):
         digest.update(name.encode() + b"\0")
         digest.update(files("autocan").joinpath(f"{name}.py").read_bytes())
@@ -122,10 +135,6 @@ class TraceRecorder:
             self._save_manifest()
             for name in STREAMS:
                 self._files[name] = (path / name).open("xb")
-            profile = _profile_bytes()
-            (path / "profile.dbc").write_bytes(profile)
-            self._hashes["profile.dbc"].update(profile)
-            self._sizes["profile.dbc"] = len(profile)
         except Exception as exc:
             self._abort(str(exc))
             raise
@@ -140,13 +149,21 @@ class TraceRecorder:
             raise TraceError("recording must start at a fresh run")
         configuration = sim.configuration()
         initial = sim.state()
+        profile = _profile_bytes(sim.profile_id)
+        try:
+            (self.path / "profile.dbc").write_bytes(profile)
+            self._hashes["profile.dbc"].update(profile)
+            self._sizes["profile.dbc"] = len(profile)
+        except Exception as exc:
+            self._abort(str(exc))
+            raise
         self._meta.update(
             run_id=sim.run_id,
             schema_version=1,
             core_version=CORE_VERSION,
             core_sha256=_core_hash(),
-            profile_version="democar-0.1.0",
-            profile_sha256=sha256(_profile_bytes()).hexdigest(),
+            profile_version=profile_version(sim.profile_id),
+            profile_sha256=sha256(profile).hexdigest(),
             package_versions=_packages(),
             configuration=configuration,
             initial_state=initial,
@@ -240,6 +257,7 @@ def record_scenario(
     with TraceRecorder(path, max_bytes=max_bytes) as recorder:
         with Simulation(
             seed=scenario.seed,
+            profile_id=scenario.profile_id,
             delivery_delay_ns=scenario.delivery_delay_ns,
             drop_probability=scenario.drop_probability,
             on_event=recorder.write,
@@ -310,8 +328,7 @@ def _read_meta(root: Path) -> dict[str, object]:
         or integer(meta["schema_version"], "schema version") != 1
     ):
         raise TraceError("unsupported trace schema")
-    if meta["profile_version"] != "democar-0.1.0":
-        raise TraceError("unsupported profile version")
+    profile_from_version(meta["profile_version"])
     _text(meta["run_id"], "run ID")
     _text(meta["core_version"], "core version")
     for name in ("core_sha256", "profile_sha256", "config_sha256", "semantic_sha256"):
@@ -373,6 +390,7 @@ def _artifact_records(root: Path, name: str) -> Iterator[dict[str, object]]:
 def _validate_event(record: dict[str, object], meta: dict[str, object]) -> None:
     base = {"run_id", "event_seq", "sim_time_ns", "event_kind", "schema_version", "profile_version"}
     kind = record.get("event_kind")
+    network = meta["profile_version"] == "democar-0.2.0"
     if (
         record.get("run_id") != meta["run_id"]
         or record.get("profile_version") != meta["profile_version"]
@@ -412,6 +430,10 @@ def _validate_event(record: dict[str, object], meta: dict[str, object]) -> None:
             raw,
             now,
         )
+        if network:
+            plan = PLAN_BY_ID.get(integer(record["can_id"], "CAN ID"))
+            if plan is None or record["source_ecu"] != plan.source_ecu or record["dlc"] != plan.dlc:
+                raise TraceError("frame does not match the network profile")
     elif kind in {"FrameReceived", "FrameDropped"}:
         fields(
             record,
@@ -420,7 +442,7 @@ def _validate_event(record: dict[str, object], meta: dict[str, object]) -> None:
             | ({"received_at_ns"} if kind == "FrameReceived" else {"seed"}),
         )
         integer(record["frame_id"], "frame_id", minimum=1)
-        if record["receiver_id"] != "KOMBI":
+        if record["receiver_id"] not in (RECEIVERS if network else ("KOMBI",)):
             raise TraceError("unsupported receiver")
         if kind == "FrameReceived" and integer(record["received_at_ns"], "received time") != now:
             raise TraceError("delivery time mismatch")
@@ -429,12 +451,21 @@ def _validate_event(record: dict[str, object], meta: dict[str, object]) -> None:
     elif kind == "InputApplied":
         command_kind = record.get("command_kind")
         parameter = command_parameter(command_kind)
-        result_fields = {"accepted", "reason"} if command_kind == "set_gear" else set()
+        result_fields = (
+            ({"request_sequence"} if network else {"accepted", "reason"})
+            if command_kind == "set_gear"
+            else set()
+        )
+        if command_kind == "set_ecu_publishing":
+            result_fields.add("ecu_id")
         fields(
             record,
             base | {"command_seq", "applied_at_ns", "command_kind", parameter} | result_fields,
         )
-        if command_kind == "set_gear":
+        if command_kind == "set_gear" and network:
+            if integer(record["request_sequence"], "request sequence") > 65535:
+                raise TraceError("invalid request sequence")
+        if command_kind == "set_gear" and not network:
             accepted, reason = record["accepted"], record["reason"]
             if type(accepted) is not bool or (
                 (accepted and reason is not None)
@@ -444,9 +475,10 @@ def _validate_event(record: dict[str, object], meta: dict[str, object]) -> None:
         integer(record["command_seq"], "command_seq", minimum=1)
         if integer(record["applied_at_ns"], "applied time") != now:
             raise TraceError("command time mismatch")
-        ScenarioCommand.from_dict(
-            {"at_ns": now, "kind": command_kind, parameter: record[parameter]}
-        )
+        command = {"at_ns": now, "kind": command_kind, parameter: record[parameter]}
+        if command_kind == "set_ecu_publishing":
+            command["ecu_id"] = record["ecu_id"]
+        ScenarioCommand.from_dict(command)
     elif kind == "PhysicalMotionUpdated":
         fields(record, base | {"physical_speed_kph"})
         motion = object_value(
@@ -456,13 +488,31 @@ def _validate_event(record: dict[str, object], meta: dict[str, object]) -> None:
         reverse = number(motion.get("max_reverse_kph"), "reverse limit", minimum=0, maximum=60)
         number(record["physical_speed_kph"], "physical speed", minimum=-reverse, maximum=forward)
     elif kind == "EcuStatusChanged":
-        fields(record, base | {"ecu_id", "status"})
-        if record["ecu_id"] != "KOMBI" or _text(record["status"], "ECU status") not in {
+        fields(record, base | {"ecu_id", "status"} | ({"message_name"} if network else set()))
+        if record["ecu_id"] not in (RECEIVERS if network else ("KOMBI",)) or _text(
+            record["status"], "ECU status"
+        ) not in {
             "FRESH",
             "STALE",
             "TIMEOUT",
         }:
             raise TraceError("invalid ECU status")
+        if network:
+            plan = PLAN_BY_NAME.get(_text(record["message_name"], "message name"))
+            if plan is None or record["ecu_id"] not in plan.receivers:
+                raise TraceError("status is not a subscribed message")
+    elif kind == "GearShiftEvaluated" and network:
+        fields(record, base | {"request_sequence", "requested_gear", "gear", "accepted", "reason"})
+        if integer(record["request_sequence"], "request sequence") > 65535:
+            raise TraceError("invalid request sequence")
+        if record["gear"] not in GEARS or record["requested_gear"] not in GEARS:
+            raise TraceError("invalid gear result")
+        if (
+            type(record["accepted"]) is not bool
+            or record["reason"] not in tuple(SHIFT_REASONS)
+            or (record["accepted"] != (record["reason"] is None))
+        ):
+            raise TraceError("invalid gear result")
     elif kind in {"FaultActivated", "FaultCleared"}:
         fields(
             record,
@@ -473,8 +523,12 @@ def _validate_event(record: dict[str, object], meta: dict[str, object]) -> None:
         _text(record["fault_id"], "fault ID")
         if (
             record["type"] != "ecu_offline"
-            or record["target_ecu"] != "engine"
-            or integer(record["target_message_id"], "target message") != 0x200
+            or record["target_ecu"] not in (ECU_IDS if network else ("engine",))
+            or (
+                record["target_message_id"] is not None
+                if network
+                else integer(record["target_message_id"], "target message") != 0x200
+            )
         ):
             raise TraceError("unsupported fault")
         start = integer(record["start_at_ns"], "fault start")
@@ -499,7 +553,9 @@ def verify_trace(root: Path) -> dict[str, object]:
         meta = _read_meta(root)
         digest = sha256()
         previous_seq = previous_time = frame_seq = command_seq = 0
-        pending: dict[int, int] = {}
+        pending: dict[tuple[int, str], int] = {}
+        pending_counts = dict.fromkeys(RECEIVERS, 0)
+        network = meta["profile_version"] == "democar-0.2.0"
         counts = dict.fromkeys(STREAMS, 0)
         for record in _ordered_events(root):
             _validate_event(record, meta)
@@ -517,14 +573,25 @@ def verify_trace(root: Path) -> dict[str, object]:
                 current = integer(record["frame_id"], "frame_id")
                 # FramePublished precedes FrameDropped. One provisional frame may
                 # coexist with 256 queued deliveries without occupying bus space.
-                if current != frame_seq + 1 or len(pending) >= 257:
+                receivers = (
+                    PLAN_BY_ID[integer(record["can_id"], "CAN ID")].receivers
+                    if network
+                    else ("KOMBI",)
+                )
+                if current != frame_seq + 1 or any(
+                    pending_counts[name] >= 257 for name in receivers
+                ):
                     raise TraceError("invalid frame order or unbounded pending deliveries")
                 frame_seq = current
-                pending[current] = now
+                for name in receivers:
+                    pending[(current, name)] = now
+                    pending_counts[name] += 1
             elif kind in {"FrameReceived", "FrameDropped"}:
                 current = integer(record["frame_id"], "frame_id")
-                if current not in pending or pending.pop(current) > now:
+                receiver = _text(record["receiver_id"], "receiver")
+                if (current, receiver) not in pending or pending.pop((current, receiver)) > now:
                     raise TraceError("delivery or drop references an unknown frame")
+                pending_counts[receiver] -= 1
             elif kind == "InputApplied":
                 if integer(record["command_seq"], "command_seq") != command_seq + 1:
                     raise TraceError("command order mismatch")
@@ -554,7 +621,8 @@ def rerun(root: Path) -> dict[str, object]:
     if meta["core_version"] != CORE_VERSION or meta["core_sha256"] != _core_hash():
         raise TraceError("current core is incompatible with the recording")
     if (
-        meta["profile_sha256"] != sha256(_profile_bytes()).hexdigest()
+        meta["profile_sha256"]
+        != sha256(_profile_bytes(profile_from_version(meta["profile_version"]))).hexdigest()
         or meta["package_versions"] != _packages()
     ):
         raise TraceError("current profile or runtime versions are incompatible")
@@ -569,6 +637,7 @@ def rerun(root: Path) -> dict[str, object]:
 
     with Simulation(
         seed=integer(config.get("seed"), "seed"),
+        profile_id=profile_from_version(meta["profile_version"]),
         delivery_delay_ns=integer(config.get("delivery_delay_ns"), "delay"),
         drop_probability=number(
             config.get("drop_probability"), "drop probability", minimum=0, maximum=1
@@ -585,9 +654,14 @@ def rerun(root: Path) -> dict[str, object]:
                 if index >= MAX_COMMANDS:
                     raise TraceError("too many simultaneous commands")
                 parameter = command_parameter(record["command_kind"])
-                ScenarioCommand.from_dict(
-                    {"at_ns": time_ns, "kind": record["command_kind"], parameter: record[parameter]}
-                ).schedule(sim)
+                command = {
+                    "at_ns": time_ns,
+                    "kind": record["command_kind"],
+                    parameter: record[parameter],
+                }
+                if record["command_kind"] == "set_ecu_publishing":
+                    command["ecu_id"] = record["ecu_id"]
+                ScenarioCommand.from_dict(command).schedule(sim)
             sim.advance_to(time_ns)
         sim.advance_to(integer(meta["end_time_ns"], "end time"))
         saved_state = object_value(meta["final_state"], "final state")

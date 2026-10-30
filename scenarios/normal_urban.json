@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "profile_id": "democar-network",
+  "duration_ns": 12000000000,
+  "seed": 42,
+  "commands": [
+    {"at_ns": 0, "kind": "set_ignition", "state": "OFF"},
+    {"at_ns": 100000000, "kind": "set_ignition", "state": "START"},
+    {"at_ns": 200000000, "kind": "set_brake", "percent": 100},
+    {"at_ns": 200000000, "kind": "set_gear", "gear": "D"},
+    {"at_ns": 400000000, "kind": "set_throttle", "percent": 60},
+    {"at_ns": 400000000, "kind": "set_brake", "percent": 0},
+    {"at_ns": 4000000000, "kind": "set_throttle", "percent": 0},
+    {"at_ns": 4500000000, "kind": "set_brake", "percent": 70},
+    {"at_ns": 6500000000, "kind": "set_gear", "gear": "N"},
+    {"at_ns": 7000000000, "kind": "set_gear", "gear": "D"},
+    {"at_ns": 7200000000, "kind": "set_throttle", "percent": 40},
+    {"at_ns": 7200000000, "kind": "set_brake", "percent": 0},
+    {"at_ns": 9500000000, "kind": "set_throttle", "percent": 0},
+    {"at_ns": 9500000000, "kind": "set_brake", "percent": 100},
+    {"at_ns": 11000000000, "kind": "set_gear", "gear": "P"},
+    {"at_ns": 11500000000, "kind": "set_ignition", "state": "OFF"}
+  ]
+}

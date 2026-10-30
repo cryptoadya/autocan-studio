@@ -1,11 +1,8 @@
 # Architecture — local laboratory
 
-Status: M3 adds a local FastAPI REST/WebSocket boundary and a React/TypeScript/Vite
-dashboard over M2's headless core, trace recorder and rerun contracts. The core,
-sensor isolation, CAN delivery and virtual deadlines remain unchanged. Extended
-faults, additional ECU, datasets and ML remain later milestones. The first M5
-pass adds physical engine/ignition controls over this same chain. Motion controls
-extend VehicleModel with longitudinal speed, brake and physical gear interlocks.
+Status: M5 extends the deterministic core and local FastAPI/React dashboard with
+five ECU, eight messages, vehicle controls and normal urban drive. The legacy
+profile remains available. Extended faults, datasets and ML remain later milestones.
 
 ## One process, explicit ownership
 
@@ -32,14 +29,40 @@ DriverInput -> VehicleModel -> EngineSensorPort -> Engine ECU
 
 KOMBI is the name of a synthetic instrument cluster, not an OEM implementation.
 
-## Allowed inputs
+## M5 network ownership
+
+`NetworkRuntime` connects five ECU through narrow sensor/actuator ports, routes
+DBC subscriptions, and schedules publication, delivery and deadlines on the same
+clock. Each ECU receives only `CanObservation` and owns independent message caches
+and timers. A separate observer subscribes to every message for the monitor.
+The [port and subscription tables](DATA_CONTRACTS.md#m5-versioned-ecu-network)
+define the network contract.
+
+Body publishes driver gear requests with sequence numbers. Transmission receives
+RPM, wheels, brake/throttle/request and Body state through CAN, validates a new
+request, and calls its narrow gear actuator. VehicleModel owns physical gear and
+retains stationary/brake interlocks. Rejections are explicit recorded results.
+Network loss/delay can change gear application and the physical trajectory;
+the legacy profile has no CAN feedback.
+
+Engine measures RPM/throttle/coolant/engine-on. ABS/DSC measures four wheel speeds
+and observes driver/Body messages. Body observes Engine/KOMBI presence; Engine
+observes Body/KOMBI presence. KOMBI publishes received link states in a heartbeat.
+These are synthetic ECU, not production ABS or automatic transmission algorithms.
+
+The routed adapter uses an isolated python-can TX/RX pair per subscriber, with
+capacity preflight before publication. Unsubscribed traffic never fills a queue.
+One logical frame has distinct per-receiver delivery/drop records; wire
+arbitration and physical bandwidth are not simulated.
+
+## Legacy profile allowed inputs
 
 M5 engine-control pass extends only the physical engine controls. VehicleModel
 owns ignition and engine-running state; DriverInput applies validated ignition
 and Start/Stop requests at the canonical input phase. Engine ECU still reads only
 RPM, and KOMBI still reads only its CAN observations. UI labels ignition/physical
 engine state as control/model state, separately from received KOMBI RPM.
-Brake/gear/speed and the additional ECU network remain subsequent M5 work.
+The network profile extends these ports as described above.
 
 | Component | Allowed inputs | Owned output/state |
 | --- | --- | --- |
@@ -58,7 +81,7 @@ do not refresh KOMBI and must not be treated as future detector input. Gear
 requests are validated at their application time against physical speed/brake;
 a rejected request is recorded with its reason rather than raising a clock
 callback error. Actual physical gear remains owned by VehicleModel. The separate
-Transmission/ABS/Body ECU network remains future M5 work.
+Transmission/ABS/Body ECU network is isolated in the versioned network profile.
 
 Components must receive narrow interfaces rather than the entire simulator or
 VehicleModel. Engine ECU may read RPM through its sensor port. KOMBI cannot
@@ -155,8 +178,9 @@ runs when possible. Duration exhaustion saves; other failures leave a failed tra
 that playback/rerun rejects. Runs are never implicitly overwritten or deleted.
 
 The live dashboard gets `kombi_rpm` and `kombi_status` from Simulation's KOMBI state.
-`physical_rpm` is excluded from the API view. The CAN Monitor only shows delivered
-frames. Playback streams validated raw events through a separate DBC observation
+`physical_rpm` and physical coolant are excluded from the API view. The network
+monitor uses observer deliveries; KOMBI fields use only KOMBI deliveries. Live
+and saved views share the pure CAN projection. Playback streams validated raw events through a separate DBC observation
 view, changes measured RPM only on delivery, and applies recorded status changes.
 It does not instantiate a VehicleModel. Its 50 ms graph sampling also runs across
 silent intervals, retaining at most the last 400 points.

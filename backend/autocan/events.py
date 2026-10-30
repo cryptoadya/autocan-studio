@@ -72,6 +72,7 @@ class RunEvent:
     sim_time_ns: int
     event_kind: str
     data: Mapping[str, Scalar]
+    profile_version: str = "democar-0.1.0"
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "data", MappingProxyType(dict(self.data)))
@@ -83,6 +84,6 @@ class RunEvent:
             "sim_time_ns": self.sim_time_ns,
             "event_kind": self.event_kind,
             "schema_version": 1,
-            "profile_version": "democar-0.1.0",
+            "profile_version": self.profile_version,
             **self.data,
         }

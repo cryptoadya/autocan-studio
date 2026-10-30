@@ -44,6 +44,8 @@ test('drive, coast, reject unsafe reverse, brake and replay model speed', async 
   await page.screenshot({path: testInfo.outputPath('motion-controls.png'), fullPage: true})
   await setRange(brake, 100)
   await expect.poll(speed).toBe(0)
+  await page.getByRole('button', {name: 'Bring Engine ECU online'}).click()
+  await expect(page.locator('.measurement strong')).toHaveText('FRESH')
   await gear.selectOption('P')
   await expect(gear).toHaveValue('P')
   await page.getByRole('button', {name: 'Stop & save', exact: true}).click()
