@@ -48,7 +48,9 @@ jobs:
       - run: npm run build
 
   browser:
-    runs-on: ubuntu-latest
+    # Newer Ubuntu AppArmor defaults block the bundled Chromium user namespace.
+    # Keep Chromium's sandbox enabled on a runner that supports it unchanged.
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-python@v7.1.0

@@ -6,6 +6,8 @@
   disposable recordings, exact freshness deadlines in playback and a fresh rerun.
 - Include pause/reload snapshot recovery, reset and a mobile viewport in the pass.
 - Add a browser CI job and retained video/trace/screenshot artifacts.
+- Pin its runner to Ubuntu 22.04 so Chromium's sandbox works without changing
+  host security settings; newer Ubuntu defaults reject the bundled browser.
 - Document the clean quickstart, reproducible offline demo and acceptance evidence;
   include a short recording and screenshot from the real browser run.
 - Set Python/UI package versions to 0.1.0. This prepares the local release;

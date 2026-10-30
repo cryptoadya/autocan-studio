@@ -56,8 +56,11 @@ This verifies a clean source-copy launch, not an installation from a published t
 
 On this macOS host, browser processes ran in an approved execution environment
 outside the restrictive agent sandbox; Chromium's own sandbox remained enabled.
-Linux Chromium CI is configured in `.github/workflows/checks.yml` but has not
-been run remotely for this branch. Local results do not establish Linux results.
+Linux Chromium CI is configured in `.github/workflows/checks.yml`; remote
+results are recorded in the PR checks. Its browser job pins Ubuntu 22.04 because
+the initial `ubuntu-latest` run (Ubuntu 26.04) rejected Chromium's user-namespace
+sandbox before the test started. The browser sandbox stays enabled and no host
+security settings are changed. Local results alone do not establish Linux results.
 
 ## Reproduce the engine-offline demo
 
