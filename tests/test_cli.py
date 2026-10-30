@@ -3,8 +3,34 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
+
+
+def test_network_cli_profile_and_rerun(tmp_path: Path) -> None:
+    def invoke(*args: str, commands: str | None = None) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-m", "autocan", *args],
+            input=commands,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    demo = invoke("demo", "--profile", "democar-network", "--duration", "0.1")
+    assert demo.returncode == 0, demo.stderr
+    assert json.loads(demo.stdout)["kombi_heartbeat_status"] == "FRESH"
+    shell = invoke(
+        "shell", "--profile", "democar-network", commands="run 0\noffline abs\nrun 300\nquit\n"
+    )
+    assert shell.returncode == 0 and not shell.stderr
+    assert json.loads(shell.stdout.splitlines()[-1])["kombi_speed_status"] == "TIMEOUT"
+    run = invoke("run", "scenarios/normal_urban.json", "--output", str(tmp_path / "urban"))
+    assert run.returncode == 0, run.stderr
+    result = invoke("rerun", str(tmp_path / "urban"))
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["matches"] is True
 
 
 def test_demo_prints_observed_rpm_and_frame_counts() -> None:

@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from autocan.dbc import profile_version
+from autocan.network_profile import ECU_IDS
 from autocan.simulation import PHYSICS_TICK_NS, Simulation
 from autocan.validation import fields, integer, json_object, number, object_value
 from autocan.vehicle import validate_gear, validate_ignition
@@ -18,7 +20,7 @@ def command_parameter(kind: object) -> str:
         return "gear"
     if kind == "set_ignition":
         return "state"
-    if kind in ("set_engine_publishing", "set_engine_running"):
+    if kind in ("set_engine_publishing", "set_engine_running", "set_ecu_publishing"):
         return "enabled"
     raise ValueError("unsupported command kind")
 
@@ -28,10 +30,12 @@ class ScenarioCommand:
     at_ns: int
     kind: str
     value: float | bool | str
+    ecu_id: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> "ScenarioCommand":
         kind = data.get("kind")
+        ecu_id: str | None = None
         at = integer(data.get("at_ns"), "at_ns")
         if at % PHYSICS_TICK_NS:
             raise ValueError("command time must align with the physics grid")
@@ -58,9 +62,19 @@ class ScenarioCommand:
                 raise ValueError("gear must be a string")
             validate_gear(gear)
             value = gear
+        elif kind == "set_ecu_publishing":
+            fields(data, {"at_ns", "kind", "ecu_id", "enabled"})
+            target = data["ecu_id"]
+            if (
+                not isinstance(target, str)
+                or target not in ECU_IDS
+                or type(data["enabled"]) is not bool
+            ):
+                raise ValueError("known ECU ID and boolean enabled are required")
+            ecu_id, value = target, data["enabled"]
         else:
             raise ValueError("unsupported command kind")
-        return cls(at, kind, value)
+        return cls(at, kind, value, ecu_id)
 
     def schedule(self, sim: Simulation) -> None:
         # Revalidate even programmatically constructed scenarios.
@@ -72,6 +86,12 @@ class ScenarioCommand:
             sim.set_gear(self.value, at_ns=self.at_ns)
         elif self.kind == "set_engine_publishing" and type(self.value) is bool:
             sim.set_engine_publishing(self.value, at_ns=self.at_ns)
+        elif (
+            self.kind == "set_ecu_publishing"
+            and type(self.value) is bool
+            and self.ecu_id is not None
+        ):
+            sim.set_ecu_publishing(self.ecu_id, self.value, at_ns=self.at_ns)
         elif self.kind == "set_engine_running" and type(self.value) is bool:
             sim.set_engine_running(self.value, at_ns=self.at_ns)
         elif self.kind == "set_ignition" and isinstance(self.value, str):
@@ -87,9 +107,11 @@ class Scenario:
     seed: int = 0
     delivery_delay_ns: int = 0
     drop_probability: float = 0
+    profile_id: str = "democar"
 
     def __post_init__(self) -> None:
         integer(self.duration_ns, "duration_ns")
+        profile_version(self.profile_id)
         integer(self.seed, "seed")
         integer(self.delivery_delay_ns, "delivery delay")
         number(self.drop_probability, "drop probability", minimum=0, maximum=1)
@@ -101,22 +123,32 @@ class Scenario:
                 raise ValueError("command is outside the run or physics grid")
             parameters: dict[str, object] = {"at_ns": command.at_ns, "kind": command.kind}
             parameters[command_parameter(command.kind)] = command.value
+            if command.kind == "set_ecu_publishing":
+                parameters["ecu_id"] = command.ecu_id
+                if self.profile_id != "democar-network" and command.ecu_id != "engine":
+                    raise ValueError("additional ECU require the network profile")
             ScenarioCommand.from_dict(parameters)
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> "Scenario":
-        fields(data, {"schema_version", "duration_ns", "commands"}, {"seed", "transport"})
+        fields(
+            data, {"schema_version", "duration_ns", "commands"}, {"seed", "transport", "profile_id"}
+        )
         if integer(data["schema_version"], "schema_version") != 1:
             raise ValueError("unsupported scenario schema")
         commands = data["commands"]
         if not isinstance(commands, list) or len(commands) > MAX_COMMANDS:
             raise ValueError("commands must be a bounded list")
         transport = object_value(data.get("transport", {}), "transport")
+        profile = data.get("profile_id", "democar")
+        if not isinstance(profile, str):
+            raise ValueError("profile_id must be a string")
         fields(transport, set(), {"delay_ns", "drop_probability"})
         return cls(
             duration_ns=integer(data["duration_ns"], "duration_ns"),
             commands=tuple(ScenarioCommand.from_dict(object_value(c, "command")) for c in commands),
             seed=integer(data.get("seed", 0), "seed"),
+            profile_id=profile,
             delivery_delay_ns=integer(transport.get("delay_ns", 0), "delay_ns"),
             drop_probability=number(
                 transport.get("drop_probability", 0), "drop probability", minimum=0, maximum=1

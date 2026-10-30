@@ -3,19 +3,14 @@
 A local-first, synthetic CAN laboratory with a deterministic simulator and an
 independent anomaly-detection pipeline planned for later milestones.
 
-**Current development: M5 engine/motion controls; released baseline: v0.1.0 (M0–M4).**
-A synthetic throttle/RPM
-model publishes EngineStatus through an Engine ECU and an in-process python-can
-adapter. KOMBI decodes its received frames independently of physical state.
-The dashboard shows received RPM, CAN deliveries and freshness; Engine ECU Offline
-stops publication while physics continues. Runs can be saved, played back and
-recomputed. The first M5 pass adds ignition and physical Start/Stop while keeping
-ECU publication independent. Motion controls add brake, P/R/N/D and a separately
-labelled physical speed readout. ABS/Transmission/Body and the expanded CAN
-profile remain subsequent M5 work. This is a synthetic laboratory,
-not an OEM emulator or a physical
-vehicle diagnostic tool. Additional ECU, the fault library, datasets and ML remain
-later milestones.
+**Current development: M5 ECU network and vehicle controls; released baseline: v0.1.0 (M0–M4).**
+Engine, ABS/DSC, Transmission, Body and KOMBI exchange eight synthetic messages
+through an in-process python-can adapter. KOMBI decodes received RPM, speed,
+temperature, gear and ignition with independent freshness timers. Physical
+ignition/Start/Stop, throttle/brake/gear and publication controls are recorded;
+runs can be saved, played back and recomputed. The normal urban drive exercises
+all five ECU. This is a synthetic laboratory, not an OEM emulator or a physical
+vehicle diagnostic tool. The fault library, datasets and ML remain later milestones.
 
 ## Run the dashboard
 
@@ -58,10 +53,22 @@ CAN publication resumes.
 
 To drive, apply at least 10% **Brake**, select **D**, then release the brake and
 increase throttle. **N** coasts; full brake stops and holds against full throttle.
+Wait for the actual gear selection before releasing the brake: the request
+travels through Body's CAN message and Transmission requires fresh inputs.
 Select P/R/D only while stopped with brake applied; unsafe requests are reported
 without interrupting the run. **R** produces negative signed speed. The separate
 **Motion / Physical model** panel shows model speed, not a received CAN signal.
 KOMBI RPM remains CAN-only and can be stale while the model is moving.
+
+The **KOMBI / Received CAN measurements** panel shows speed, coolant temperature,
+gear, Body ignition and wheel consistency. Each field retains its last CAN value
+when its own message becomes STALE or TIMEOUT. **Stop publication** independently
+suppresses each ECU's outgoing messages; reception continues. Stopping ABS/DSC
+publication times out speed while Engine RPM stays fresh. The CAN Monitor uses
+a separate observer and decodes all eight messages. Wheel speeds are equal in
+the current straight-line model; this does not model wheel slip or real ABS control.
+
+![M5 ECU network and independent KOMBI heartbeat timeout](docs/images/m5-ecu-network.png)
 
 ![M5 reverse motion while Engine ECU is offline](docs/images/m5-motion-controls.png)
 
@@ -151,6 +158,8 @@ requests to the backend. The single-command demo uses a static build instead.
 uv run --locked autocan demo --duration 1 --throttle 50 --seed 42
 uv run --locked python -m autocan demo --duration 0.1 --throttle 50 --events
 uv run --locked autocan shell --seed 42
+uv run --locked autocan demo --profile democar-network --duration 1 --seed 42
+uv run --locked autocan shell --profile democar-network --seed 42
 ```
 
 Demo duration is in seconds; execution is faster than real time. The default
@@ -158,16 +167,20 @@ output is one JSON summary. With `--events`, canonical events stream to stdout
 and the summary goes to stderr. This is a debug stream; use `run` below for a
 complete recording. Events are not accumulated in memory by the simulator.
 Physics is noise-free; controlled delivery loss uses its own seeded RNG stream.
+The CLI/API default remains the legacy `democar` profile; the dashboard explicitly
+creates `democar-network`. Reset retains the selected profile.
 
 The shell accepts one command per line and prints JSON state after each valid
 command: `throttle PERCENT`, `brake PERCENT`, `gear P|R|N|D`,
 `ignition OFF|ACC|ON|START`, `engine start`, `engine stop`,
-`run MILLISECONDS`, `offline`, `online`, `pause`, `resume`, `step`,
+`run MILLISECONDS`, `offline [ECU]`, `online [ECU]`, `pause`, `resume`, `step`,
 `reset`, `state`, `quit`. `run` is relative to the current virtual time and does
 not advance while paused. `step` advances 10 ms even while paused, preserving
 the pause setting. Reset creates a fresh run at time zero, clears queued
 commands/events and transport, and restores 800 rpm / 0% throttle / unavailable
 KOMBI data. It does not automatically repeat previously submitted commands.
+ECU IDs are `engine`, `abs`, `transmission`, `body` and `KOMBI`; omitting the ID
+targets Engine. Additional ECU require `--profile democar-network`.
 
 The state output labels `physical_rpm` as model truth and `kombi_rpm` as the
 received measurement. Future dashboards must use the latter. At 50% throttle
@@ -204,6 +217,12 @@ request while moving, braking to a stop and a valid reverse selection. It record
 model speed changes as well as CAN events; playback restores the recorded speed
 without running physics, and rerun recomputes and compares the full stream.
 
+`scenarios/normal_urban.json` selects `democar-network`: ignition/start, acceleration,
+braking, a neutral stop, another drive and final parking/engine stop. All five ECU
+publish and receive throughout. Run it with a new output directory and the same
+`run` / `playback` / `rerun` commands. Its recorded gear requests and accepted
+Transmission results are separate events.
+
 Each run contains:
 
 - `events.jsonl`: immutable frames, deliveries, ECU status changes and explicitly
@@ -238,6 +257,10 @@ after Offline. Variable jitter and a full fault editor are later features.
 The original, MIT-licensed synthetic profile is packaged at
 `backend/autocan/profiles/democar.dbc`. This single canonical copy is included in
 the wheel and source distribution; it is not an extracted OEM DBC.
+`democar_network.dbc` adds wheel speeds, engine telemetry, transmission, Body,
+driver requests and cluster heartbeat as `democar-0.2.0`. Both immutable profile
+versions remain supported for playback. Select it in Python with
+`load_democar_database("democar-network")`.
 
 ```python
 from autocan.dbc import load_democar_database
@@ -258,7 +281,6 @@ The profile specifies a synthetic CAN ID, not a real vehicle mapping.
 - [Milestone status](docs/ROADMAP.md)
 - [Change history](CHANGELOG.md)
 
-M3 adds the local API/UI above the unchanged headless core. M4 remains the
-release acceptance and packaging milestone; no v0.1 tag or release is implied.
-The fault library, additional ECU, Parquet/dataset factory and ML remain separate
-milestones.
+M5 completes the five-ECU network and normal urban drive scope above the released
+v0.1.0 baseline. Local verification is recorded in the milestone status; remote
+CI requires a push. M6 adds the fault library; Parquet/datasets and ML follow later.

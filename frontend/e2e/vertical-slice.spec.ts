@@ -12,6 +12,7 @@ test('throttle → CAN → KOMBI → silent bus → save → playback → rerun'
   await expect.poll(async () => Number(
     (await page.getByTestId('received-rpm').innerText()).replace(/[^0-9]/g, ''),
   )).toBeGreaterThan(800)
+  await page.getByRole('textbox', {name: 'Filter CAN ID'}).fill('0x200')
   await expect(page.locator('tbody tr').first()).toContainText('0x200')
 
   await page.getByRole('button', {name: 'Take Engine ECU offline'}).click()
@@ -30,7 +31,8 @@ test('throttle → CAN → KOMBI → silent bus → save → playback → rerun'
   await expect(page.getByRole('button', {name: 'Resume', exact: true})).toBeEnabled()
   const paused = await (await page.request.get('/api/simulations/current')).json()
   expect(paused.state.kombi_rpm).toBe(offline.state.kombi_rpm)
-  expect(paused.state.frames_published).toBe(offline.state.frames_published)
+  expect(paused.state.engine_frames_published).toBe(offline.state.engine_frames_published)
+  expect(paused.state.frames_published).toBeGreaterThan(offline.state.frames_published)
   expect(paused.state.engine_running).toBe(true)
   expect(paused.state.throttle_percent).toBe(0)
   expect(paused.sim_time_ns).toBeGreaterThan(offline.sim_time_ns)

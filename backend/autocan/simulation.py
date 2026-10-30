@@ -11,8 +11,11 @@ from uuid import uuid4
 
 from autocan.bus import BusAdapter, VirtualCanAdapter
 from autocan.clock import Phase, SimulationClock, validate_time
+from autocan.dbc import profile_version
 from autocan.ecu import EngineEcu, Kombi, KombiState
 from autocan.events import RunEvent, Scalar
+from autocan.network_profile import ECU_IDS
+from autocan.network_runtime import NetworkRuntime
 from autocan.vehicle import (
     VehicleModel,
     validate_brake,
@@ -45,8 +48,9 @@ class Simulation:
         self,
         *,
         seed: int = 0,
+        profile_id: str = "democar",
         on_event: Callable[[RunEvent], None] | None = None,
-        bus_factory: Callable[[], BusAdapter] = VirtualCanAdapter,
+        bus_factory: Callable[[], BusAdapter] | None = None,
         delivery_delay_ns: int = 0,
         drop_probability: float = 0,
     ) -> None:
@@ -59,6 +63,8 @@ class Simulation:
             or not 0 <= drop_probability <= 1
         ):
             raise ValueError("drop_probability must be finite and in [0, 1]")
+        self._profile_version = profile_version(profile_id)
+        self._profile_id = profile_id
         self._seed = seed
         self._delivery_delay_ns = delivery_delay_ns
         self._drop_probability = float(drop_probability)
@@ -71,20 +77,46 @@ class Simulation:
         self._run_id = uuid4().hex
         self._clock = SimulationClock()
         self._vehicle = VehicleModel()
-        self._engine = EngineEcu(_VehicleRpmSensor(self._vehicle))
-        self._kombi = Kombi(clock=self._clock, on_status=self._kombi_status)
-        self._bus = self._bus_factory()
         self._frame_seq = self._event_seq = self._command_seq = self._deliveries = 0
         self._engine_publishing = True
         self._offline_fault: tuple[str, int] | None = None
         self._delivery_rng = Random(int(rng_stream_seeds(self._seed)["delivery"], 16))
-        self._clock.schedule(0, Phase.PUBLICATION, self._publish)
+        self._network: NetworkRuntime | None = None
+        self._bus: BusAdapter
+        if self._profile_id == "democar-network":
+            self._network = NetworkRuntime(
+                self._clock,
+                self._vehicle,
+                self._emit,
+                self._delivery_rng,
+                self._seed,
+                self._delivery_delay_ns,
+                self._drop_probability,
+                self._bus_factory,
+            )
+            self._bus = self._network.bus
+        else:
+            self._engine = EngineEcu(_VehicleRpmSensor(self._vehicle))
+            self._kombi = Kombi(clock=self._clock, on_status=self._kombi_status)
+            self._bus = (
+                self._bus_factory() if self._bus_factory is not None else VirtualCanAdapter()
+            )
+            self._clock.schedule(0, Phase.PUBLICATION, self._publish)
         self._clock.schedule(PHYSICS_TICK_NS, Phase.PHYSICS, self._physics_tick)
 
     def _emit(self, kind: str, **data: Scalar) -> None:
         self._event_seq += 1
         if self._on_event is not None:
-            self._on_event(RunEvent(self._run_id, self._event_seq, self._clock.now_ns, kind, data))
+            self._on_event(
+                RunEvent(
+                    self._run_id,
+                    self._event_seq,
+                    self._clock.now_ns,
+                    kind,
+                    data,
+                    self._profile_version,
+                )
+            )
 
     def _physics_tick(self) -> None:
         before = self._vehicle.speed_kph
@@ -176,6 +208,9 @@ class Simulation:
                 command_kind="set_engine_publishing",
                 enabled=enabled,
             )
+            if self._network is not None:
+                self._network.set_publishing("engine", enabled, self._command_seq)
+                return
             if self._engine_publishing == enabled:
                 return
             self._engine_publishing = enabled
@@ -205,6 +240,30 @@ class Simulation:
                     start_at_ns=self._clock.now_ns,
                     seed=self._seed,
                 )
+
+        return self._queue_input(at_ns, apply)
+
+    def set_ecu_publishing(self, ecu_id: str, enabled: bool, *, at_ns: int | None = None) -> int:
+        self._check_open()
+        if ecu_id not in ECU_IDS or type(enabled) is not bool:
+            raise ValueError("known ECU ID and boolean enabled are required")
+        if self._network is None:
+            if ecu_id == "engine":
+                return self.set_engine_publishing(enabled, at_ns=at_ns)
+            raise ValueError("additional ECU require the network profile")
+
+        def apply() -> None:
+            assert self._network is not None
+            self._command_seq += 1
+            self._emit(
+                "InputApplied",
+                command_seq=self._command_seq,
+                applied_at_ns=self._clock.now_ns,
+                command_kind="set_ecu_publishing",
+                ecu_id=ecu_id,
+                enabled=enabled,
+            )
+            self._network.set_publishing(ecu_id, enabled, self._command_seq)
 
         return self._queue_input(at_ns, apply)
 
@@ -269,6 +328,18 @@ class Simulation:
         validate_gear(gear)
 
         def apply() -> None:
+            if self._network is not None:
+                self._command_seq += 1
+                sequence = self._network.request_gear(gear)
+                self._emit(
+                    "InputApplied",
+                    command_seq=self._command_seq,
+                    applied_at_ns=self._clock.now_ns,
+                    command_kind="set_gear",
+                    gear=gear,
+                    request_sequence=sequence,
+                )
+                return
             before = self._vehicle.speed_kph
             accepted = self._vehicle.set_gear(gear)
             self._command_seq += 1
@@ -303,9 +374,14 @@ class Simulation:
     def run_id(self) -> str:
         return self._run_id
 
+    @property
+    def profile_id(self) -> str:
+        return self._profile_id
+
     def configuration(self) -> dict[str, object]:
         return {
             "seed": self._seed,
+            "profile_id": self._profile_id,
             "delivery_delay_ns": self._delivery_delay_ns,
             "drop_probability": self._drop_probability,
             "physics_tick_ns": PHYSICS_TICK_NS,
@@ -316,6 +392,7 @@ class Simulation:
             "rng_algorithm": "sha256-namespaced-v1/python.Random",
             "motion": asdict(self._vehicle.motion_config),
             "motion_model_version": "simple-longitudinal-v1",
+            "network": self._network.configuration() if self._network is not None else None,
         }
 
     def advance_to(self, target_ns: int) -> None:
@@ -335,7 +412,17 @@ class Simulation:
         self._clock.resume()
 
     def state(self) -> dict[str, Scalar]:
-        return {
+        kombi = (
+            self._network.kombi.display_state()
+            if self._network is not None
+            else {
+                "kombi_rpm": self._kombi.state.rpm,
+                "kombi_status": self._kombi.state.status,
+                "last_received_ns": self._kombi.state.last_received_ns,
+            }
+        )
+        state: dict[str, Scalar] = {
+            "profile_id": self._profile_id,
             "sim_time_ns": self._clock.now_ns,
             "paused": self._clock.paused,
             "seed": self._seed,
@@ -345,9 +432,7 @@ class Simulation:
             "shift_rejection": self._vehicle.shift_rejection,
             "physical_speed_kph": self._vehicle.speed_kph,
             "physical_rpm": self._vehicle.rpm,
-            "kombi_rpm": self._kombi.state.rpm,
-            "kombi_status": self._kombi.state.status,
-            "last_received_ns": self._kombi.state.last_received_ns,
+            **kombi,
             "frames_published": self._frame_seq,
             "deliveries": self._deliveries,
             "events_emitted": self._event_seq,
@@ -355,6 +440,10 @@ class Simulation:
             "ignition_state": self._vehicle.ignition_state,
             "engine_publishing": self._engine_publishing,
         }
+        if self._network is not None:
+            state.update(self._network.state())
+            state["physical_coolant_c"] = self._vehicle.coolant_c
+        return state
 
     def reset(self) -> None:
         self._check_open()

@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — M5 ECU network
+
+- Add the versioned DemoCar 0.2 profile: five publishing/subscribing ECU, eight
+  original DBC messages, narrow sensor/actuator ports and per-message deadlines.
+- Route gear requests through Body CAN and Transmission's fresh-input/interlock
+  checks. Add signed wheel speeds, coolant temperature and independent link states.
+- Extend KOMBI with CAN-only speed, temperature, gear, ignition and wheel status;
+  add per-ECU publication controls and a separate decoded CAN observer monitor.
+- Preserve legacy profile/default callers and historical playback. Record and
+  verify per-receiver references, gear results and profile snapshots; reconstruct
+  live/saved views without physical fallbacks and reproduce the network on rerun.
+- Add normal urban drive acceptance and API/CLI/browser regression coverage.
+  This completes the local M5 scope; no new release or remote CI result is implied.
+
 ## Unreleased — M5 motion controls
 
 - Add brake, P/R/N/D, longitudinal speed, coasting, directional caps and moving

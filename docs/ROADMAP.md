@@ -123,3 +123,23 @@ See [v0.1 acceptance](V0_1_ACCEPTANCE.md) for executed checks and limitations.
 - Still remaining in M5: ABS/DSC, Transmission and Body ECU, expanded DBC and
   subscriptions, CAN speed/temperature/availability in KOMBI, and full-network
   normal urban drive acceptance. This part does not mark M5 complete.
+
+## M5 ECU network — local acceptance complete
+
+- `democar-network` / `democar-0.2.0`: Engine, ABS/DSC, Transmission, Body and
+  KOMBI publish/receive eight DBC messages through explicit subscription routes.
+  The allowed ports and subscriptions are in [data contracts](DATA_CONTRACTS.md).
+- Body publishes driver requests; Transmission applies gear selection after CAN
+  delivery and fresh-input/physical interlocks. RPM, brake, throttle and gear
+  appear in the declared messages. No ECU reads another ECU's internal state.
+- KOMBI derives speed, temperature, gear, ignition and consistency from its own
+  delivered CAN data. Separate virtual deadlines detect loss on a mixed or silent
+  bus. Engine Start/Stop and publication Offline retain distinct tested effects.
+- UI defaults to this network; CLI/API preserve the legacy default. Live and saved
+  views use the selected profile, and rerun reproduces delayed/lost deliveries.
+- `normal_urban.json` covers start, drive, stop, neutral, another drive, parking
+  and engine stop. Acceptance verifies five ECU, all fresh received fields, actual
+  motion/stops and identical rerun. `images/m5-ecu-network.png` shows the real UI.
+- Local verification: 224 Python tests, 16 frontend tests, 4 Chromium acceptance
+  tests, Ruff, mypy, TypeScript and production build passed. Remote CI/release
+  remain separate delivery actions. The next milestone is M6 fault scenarios.

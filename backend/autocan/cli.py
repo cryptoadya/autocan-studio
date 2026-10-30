@@ -9,6 +9,7 @@ from decimal import Decimal, DecimalException
 from pathlib import Path
 from typing import TextIO
 
+from autocan.dbc import PROFILES
 from autocan.events import RunEvent
 from autocan.scenarios import Scenario
 from autocan.simulation import Simulation
@@ -63,7 +64,7 @@ def _shell(sim: Simulation) -> int:
     if sys.stdin.isatty():
         print(
             "Commands: throttle PERCENT, brake PERCENT, gear P|R|N|D, "
-            "run MILLISECONDS, offline, online, "
+            "run MILLISECONDS, offline [ECU], online [ECU], "
             "ignition OFF|ACC|ON|START, engine start|stop, pause, resume, step, reset, state, quit",
             file=sys.stderr,
         )
@@ -89,6 +90,10 @@ def _shell(sim: Simulation) -> int:
                     sim.set_engine_publishing(False)
                 case ["online"]:
                     sim.set_engine_publishing(True)
+                case ["offline", ecu_id]:
+                    sim.set_ecu_publishing(ecu_id, False)
+                case ["online", ecu_id]:
+                    sim.set_ecu_publishing(ecu_id, True)
                 case ["ignition", value]:
                     sim.set_ignition(value)
                 case ["engine", "start"]:
@@ -123,6 +128,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     demo.add_argument("--events", action="store_true", help="stream events; summary goes to stderr")
     shell = commands.add_parser("shell", help="line-oriented controls; run takes milliseconds")
     shell.add_argument("--seed", type=_seed, default=0)
+    for command_parser in (demo, shell):
+        command_parser.add_argument("--profile", choices=tuple(PROFILES), default="democar")
     run = commands.add_parser("run", help="record a declarative JSON scenario into a new directory")
     run.add_argument("scenario", type=Path)
     run.add_argument("--output", type=Path, required=True)
@@ -165,7 +172,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _write(rerun(args.run_directory), stream=sys.stdout)
             return 0
         sink = _event if args.command == "demo" and args.events else None
-        with Simulation(seed=args.seed, on_event=sink) as sim:
+        with Simulation(seed=args.seed, on_event=sink, profile_id=args.profile) as sim:
             if args.command == "shell":
                 return _shell(sim)
             sim.set_throttle(args.throttle)

@@ -18,7 +18,9 @@ export function MotionControls({state, disabled, onBrake, onGear}: Props) {
   const rejection = state?.shift_rejection === 'vehicle_moving'
     ? 'Stop the vehicle before selecting P, R or D.'
     : state?.shift_rejection === 'brake_required'
-      ? 'Press the brake before selecting P, R or D.' : ''
+      ? 'Press the brake before selecting P, R or D.'
+      : state?.shift_rejection === 'inputs_unavailable'
+        ? 'Wait for fresh Engine, ABS/DSC and Body CAN inputs, then select the gear again.' : ''
   return <section className="motion-controls" aria-label="Motion · physical model">
     <h2>Motion <span>Physical model</span></h2>
     <div className="motion-grid">

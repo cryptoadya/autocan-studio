@@ -16,6 +16,7 @@ from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from autocan.api.runtime import Session, saved_view
+from autocan.dbc import PROFILES
 from autocan.traces import rerun, verify_trace
 
 
@@ -86,6 +87,7 @@ class Inputs(BaseModel):
 class Fault(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     offline: bool
+    ecu_id: Literal["engine", "abs", "transmission", "body", "KOMBI"] = "engine"
 
 
 def create_app(*, data_root: Path = Path("data/runs"), static_root: Path | None = None) -> FastAPI:
@@ -140,18 +142,25 @@ def create_app(*, data_root: Path = Path("data/runs"), static_root: Path | None 
 
     @app.get("/api/profiles")
     async def profiles() -> list[dict[str, str]]:
-        return [{"id": "democar", "name": "DemoCar", "version": "democar-0.1.0"}]
+        return [
+            {
+                "id": name,
+                "name": "DemoCar network" if name == "democar-network" else "DemoCar legacy",
+                "version": spec[0],
+            }
+            for name, spec in PROFILES.items()
+        ]
 
     @app.post("/api/simulations")
     async def create(spec: CreateSimulation) -> dict[str, Any]:
         nonlocal active
-        if spec.profile_id != "democar":
-            raise HTTPException(422, "only democar is available in M3")
+        if spec.profile_id not in PROFILES:
+            raise HTTPException(422, "unsupported DemoCar profile")
         if active is not None and not active.stopped:
             raise HTTPException(409, "stop and save the active run first")
         if active is not None:
             active.close()
-        active = Session(data_root, seed=spec.seed)
+        active = Session(data_root, seed=spec.seed, profile_id=spec.profile_id)
         return active.snapshot()
 
     @app.get("/api/simulations/current")
@@ -176,7 +185,7 @@ def create_app(*, data_root: Path = Path("data/runs"), static_root: Path | None 
 
     @app.post("/api/simulations/{identifier}/faults")
     async def fault(identifier: str, spec: Fault) -> dict[str, int]:
-        return {"applied_at_ns": current(identifier).offline(spec.offline)}
+        return {"applied_at_ns": current(identifier).offline(spec.offline, spec.ecu_id)}
 
     @app.post("/api/simulations/{identifier}/{action}")
     async def control(identifier: str, action: str) -> dict[str, Any]:
@@ -186,8 +195,9 @@ def create_app(*, data_root: Path = Path("data/runs"), static_root: Path | None 
             if action == "reset":
                 session.stop()
                 seed = int(session.sim.state()["seed"] or 0)
+                profile_id = session.sim.profile_id
                 session.close()
-                active = Session(data_root, seed=seed)
+                active = Session(data_root, seed=seed, profile_id=profile_id)
                 return active.snapshot()
             if action not in {"start", "pause", "stop"}:
                 raise HTTPException(404, "unknown simulation action")
@@ -238,6 +248,7 @@ def create_app(*, data_root: Path = Path("data/runs"), static_root: Path | None 
             await ws.accept()
             seq = 0
             last_frame = 0
+            last_display = 0
             last_time = -1
             while active is session:
                 snapshot = session.snapshot()
@@ -252,13 +263,17 @@ def create_app(*, data_root: Path = Path("data/runs"), static_root: Path | None 
                 if seq > 1:
                     frames = snapshot["frames"]
                     if frames:
-                        message["skipped_frames"] = max(0, frames[0]["frame_id"] - last_frame - 1)
+                        message["skipped_frames"] = max(
+                            0,
+                            frames[0].get("display_seq", frames[0]["frame_id"]) - last_display - 1,
+                        )
                     message["frames"] = [f for f in frames if f["frame_id"] > last_frame]
                     message["signals"] = [
                         s for s in snapshot["signals"] if s["sim_time_ns"] > last_time
                     ]
                 if snapshot["frames"]:
                     last_frame = snapshot["frames"][-1]["frame_id"]
+                    last_display = snapshot["frames"][-1].get("display_seq", last_frame)
                 if snapshot["signals"]:
                     last_time = snapshot["signals"][-1]["sim_time_ns"]
                 await asyncio.wait_for(ws.send_json(message), timeout=1)

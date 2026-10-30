@@ -1,0 +1,73 @@
+VERSION "democar-0.2.0"
+
+NS_ :
+    CM_
+    BA_DEF_
+    BA_DEF_DEF_
+    BA_
+    VAL_
+
+BS_:
+
+BU_: Engine ABS Transmission Body KOMBI Observer
+
+BO_ 512 EngineStatus: 2 Engine
+ SG_ EngineRpm : 0|16@1+ (0.25,0) [0|8000] "rpm" KOMBI,Transmission,Observer
+
+BO_ 513 EngineTelemetry: 4 Engine
+ SG_ Throttle : 0|8@1+ (0.5,0) [0|100] "%" KOMBI,Transmission,Body,Observer
+ SG_ CoolantTemperature : 8|16@1+ (0.1,-40) [-40|150] "degC" KOMBI,Transmission,Body,Observer
+ SG_ EngineOn : 24|1@1+ (1,0) [0|1] "" KOMBI,Transmission,Body,Observer
+ SG_ BodyLink : 25|2@1+ (1,0) [0|3] "" KOMBI,Transmission,Body,Observer
+ SG_ ClusterLink : 27|2@1+ (1,0) [0|3] "" KOMBI,Transmission,Body,Observer
+
+BO_ 528 WheelSpeeds: 8 ABS
+ SG_ FrontLeft : 0|16@1- (0.01,0) [-60|300] "km/h" KOMBI,Transmission,Observer
+ SG_ FrontRight : 16|16@1- (0.01,0) [-60|300] "km/h" KOMBI,Transmission,Observer
+ SG_ RearLeft : 32|16@1- (0.01,0) [-60|300] "km/h" KOMBI,Transmission,Observer
+ SG_ RearRight : 48|16@1- (0.01,0) [-60|300] "km/h" KOMBI,Transmission,Observer
+
+BO_ 529 AbsStatus: 2 ABS
+ SG_ BrakeObserved : 0|8@1+ (0.5,0) [0|100] "%" KOMBI,Observer
+ SG_ WheelsConsistent : 8|1@1+ (1,0) [0|1] "" KOMBI,Observer
+ SG_ DriverLink : 9|2@1+ (1,0) [0|3] "" KOMBI,Observer
+ SG_ BodyLink : 11|2@1+ (1,0) [0|3] "" KOMBI,Observer
+
+BO_ 544 TransmissionState: 6 Transmission
+ SG_ Gear : 0|2@1+ (1,0) [0|3] "" KOMBI,Observer
+ SG_ ShiftAccepted : 2|1@1+ (1,0) [0|1] "" KOMBI,Observer
+ SG_ ShiftReason : 3|2@1+ (1,0) [0|3] "" KOMBI,Observer
+ SG_ InputsStatus : 5|2@1+ (1,0) [0|3] "" KOMBI,Observer
+ SG_ ThrottleObserved : 8|8@1+ (0.5,0) [0|100] "%" KOMBI,Observer
+ SG_ EngineRpmObserved : 16|16@1+ (0.25,0) [0|8000] "rpm" KOMBI,Observer
+ SG_ RequestSequence : 32|16@1+ (1,0) [0|65535] "" KOMBI,Observer
+
+BO_ 560 BodyState: 1 Body
+ SG_ Ignition : 0|2@1+ (1,0) [0|3] "" Engine,ABS,Transmission,KOMBI,Observer
+ SG_ EngineLink : 2|2@1+ (1,0) [0|3] "" Engine,ABS,Transmission,KOMBI,Observer
+ SG_ ClusterLink : 4|2@1+ (1,0) [0|3] "" Engine,ABS,Transmission,KOMBI,Observer
+
+BO_ 561 DriverInput: 5 Body
+ SG_ Throttle : 0|8@1+ (0.5,0) [0|100] "%" ABS,Transmission,Observer
+ SG_ Brake : 8|8@1+ (0.5,0) [0|100] "%" ABS,Transmission,Observer
+ SG_ RequestedGear : 16|2@1+ (1,0) [0|3] "" ABS,Transmission,Observer
+ SG_ RequestSequence : 24|16@1+ (1,0) [0|65535] "" ABS,Transmission,Observer
+
+BO_ 576 ClusterHeartbeat: 2 KOMBI
+ SG_ EngineLink : 0|2@1+ (1,0) [0|3] "" Engine,Body,Observer
+ SG_ WheelsLink : 2|2@1+ (1,0) [0|3] "" Engine,Body,Observer
+ SG_ TransmissionLink : 4|2@1+ (1,0) [0|3] "" Engine,Body,Observer
+ SG_ BodyLink : 6|2@1+ (1,0) [0|3] "" Engine,Body,Observer
+ SG_ AliveCounter : 8|8@1+ (1,0) [0|255] "" Engine,Body,Observer
+
+CM_ "Original MIT-licensed synthetic DemoCar network. No OEM mapping or physical CAN timing claim.";
+BA_DEF_ BO_ "GenMsgCycleTime" INT 0 65535;
+BA_DEF_DEF_ "GenMsgCycleTime" 0;
+BA_ "GenMsgCycleTime" BO_ 512 20;
+BA_ "GenMsgCycleTime" BO_ 513 100;
+BA_ "GenMsgCycleTime" BO_ 528 20;
+BA_ "GenMsgCycleTime" BO_ 529 100;
+BA_ "GenMsgCycleTime" BO_ 544 100;
+BA_ "GenMsgCycleTime" BO_ 560 100;
+BA_ "GenMsgCycleTime" BO_ 561 20;
+BA_ "GenMsgCycleTime" BO_ 576 100;

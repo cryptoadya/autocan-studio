@@ -2,7 +2,7 @@
 
 from collections import deque
 from types import TracebackType
-from typing import Protocol, Self
+from typing import Protocol, Self, runtime_checkable
 from uuid import uuid4
 
 from can import CanOperationError, Message
@@ -18,6 +18,11 @@ class BusAdapter(Protocol):
     def close(self) -> None: ...
 
 
+@runtime_checkable
+class RoutedBusAdapter(BusAdapter, Protocol):
+    def publish_to(self, frame: CanFrame, receiver_ids: tuple[str, ...]) -> None: ...
+
+
 class VirtualCanAdapter:
     def __init__(
         self, *, receiver_ids: tuple[str, ...] = ("KOMBI",), queue_size: int = 256
@@ -27,9 +32,16 @@ class VirtualCanAdapter:
         if not receiver_ids or len(set(receiver_ids)) != len(receiver_ids) or not all(receiver_ids):
             raise ValueError("receiver IDs must be nonempty and unique")
         channel = f"autocan-{uuid4().hex}"
-        self._tx = VirtualBus(channel, preserve_timestamps=True, rx_queue_size=queue_size)
+        self._tx = {
+            name: VirtualBus(
+                f"{channel}-{name}", preserve_timestamps=True, rx_queue_size=queue_size
+            )
+            for name in receiver_ids
+        }
         self._receivers = {
-            name: VirtualBus(channel, preserve_timestamps=True, rx_queue_size=queue_size)
+            name: VirtualBus(
+                f"{channel}-{name}", preserve_timestamps=True, rx_queue_size=queue_size
+            )
             for name in receiver_ids
         }
         self._pending: dict[str, deque[CanFrame]] = {name: deque() for name in receiver_ids}
@@ -37,10 +49,17 @@ class VirtualCanAdapter:
         self._closed = False
 
     def publish(self, frame: CanFrame) -> None:
+        self.publish_to(frame, tuple(self._receivers))
+
+    def publish_to(self, frame: CanFrame, receiver_ids: tuple[str, ...]) -> None:
         self._check_open()
+        if len(set(receiver_ids)) != len(receiver_ids) or any(
+            name not in self._receivers for name in receiver_ids
+        ):
+            raise ValueError("unknown or duplicate receiver route")
         if frame.channel != "democar":
             raise ValueError("unknown logical CAN channel")
-        if any(len(queue) >= self._queue_size for queue in self._pending.values()):
+        if any(len(self._pending[name]) >= self._queue_size for name in receiver_ids):
             raise RuntimeError("virtual CAN receive queue is full")
         message = Message(
             timestamp=0.0,  # canonical integer times never travel through this float
@@ -51,11 +70,12 @@ class VirtualCanAdapter:
             check=True,
         )
         try:
-            self._tx.send(message, timeout=0)
+            for name in receiver_ids:
+                self._tx[name].send(message, timeout=0)
         except CanOperationError as exc:
             raise RuntimeError("virtual CAN queue delivery failed") from exc
-        for queue in self._pending.values():
-            queue.append(frame)
+        for name in receiver_ids:
+            self._pending[name].append(frame)
 
     def receive(self, receiver_id: str, *, received_at_ns: int) -> Delivery | None:
         self._check_open()
@@ -88,7 +108,8 @@ class VirtualCanAdapter:
 
     def close(self) -> None:
         if not self._closed:
-            self._tx.shutdown()
+            for transmitter in self._tx.values():
+                transmitter.shutdown()
             for receiver in self._receivers.values():
                 receiver.shutdown()
             for queue in self._pending.values():

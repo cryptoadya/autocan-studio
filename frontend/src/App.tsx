@@ -3,6 +3,7 @@ import { request, useLiveSocket } from './api'
 import { useStudio } from './store'
 import { Dashboard } from './components/Dashboard'
 import { MotionControls } from './components/MotionControls'
+import { NetworkPanel } from './components/NetworkPanel'
 import { SignalChart } from './components/SignalChart'
 import { CanMonitor } from './components/CanMonitor'
 import { Recordings } from './components/Recordings'
@@ -46,7 +47,7 @@ export function App() {
   const control = (action: string) => perform(async () => {
     let session = live
     if (!session || (session.stopped && action === 'start')) {
-      session = await request<Snapshot>('/api/simulations', 'POST', {seed: 42})
+      session = await request<Snapshot>('/api/simulations', 'POST', {seed: 42, profile_id: 'democar-network'})
       useStudio.getState().adopt(session)
     }
     const next = await request<Snapshot>(`/api/simulations/${session.id}/${action}`, 'POST')
@@ -96,7 +97,7 @@ export function App() {
     <header><div className="brand"><span className="brand-mark" aria-hidden="true">A<span>/</span>C</span>
       <span>AutoCAN <b>Studio</b></span></div><span className="header-note">Synthetic CAN laboratory <span>Local / DemoCar</span></span></header>
     <main>
-      <div className="workspace-heading"><div><h1>Vehicle lab</h1><p>Engine ECU → CAN → KOMBI. One signal, the complete chain.</p></div>
+      <div className="workspace-heading"><div><h1>Vehicle lab</h1><p>{view && view.state.profile_id !== 'democar-network' ? 'Engine ECU → CAN → KOMBI. One signal, the complete chain.' : 'Engine · ABS/DSC · Transmission · Body · KOMBI. Connected through CAN.'}</p></div>
         <div className="connection"><span className={`indicator ${!connected ? 'off' : ''}`} />{loading ? 'Connecting…' : connected ? 'Connected locally' : live ? 'Reconnecting…' : 'Ready locally'}</div></div>
       <div className="run-toolbar">
         <div className="run-identity"><strong className={isPlayback ? 'mode playback' : 'mode'}>{isPlayback ? 'PLAYBACK' : 'LIVE'}</strong>
@@ -121,8 +122,10 @@ export function App() {
       <MotionControls key={`motion-${view?.id}`} state={view?.state} disabled={disabled}
         onBrake={brake => command('inputs', 'PATCH', {brake})}
         onGear={gear => command('inputs', 'PATCH', {gear})} />
+      {view?.state.profile_id === 'democar-network' && <NetworkPanel state={view.state} disabled={disabled}
+        onOffline={(ecu_id, offline) => command('faults', 'POST', {ecu_id, offline})} />}
       <SignalChart signals={view?.signals ?? []} now={view?.sim_time_ns ?? 0} />
-      <CanMonitor key={`${view?.id}-${view?.mode}`} frames={view?.frames ?? []} skipped={skipped} />
+      <CanMonitor key={`${view?.id}-${view?.mode}`} frames={view?.frames ?? []} skipped={skipped} network={view?.state.profile_id === 'democar-network'} />
       <Recordings runs={runs} view={view} busy={busy} onLoad={load}
         onLive={returnToLive}
         onRerun={id => perform(async () => {

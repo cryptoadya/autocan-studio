@@ -13,6 +13,7 @@ test('physical Stop/Start and ignition stay independent of publication Offline',
   }
   await expect(page.getByText('Physical engine: Running', {exact: true})).toBeVisible()
   await expect(page.locator('.measurement strong')).toHaveText('FRESH')
+  await page.getByRole('textbox', {name: 'Filter CAN ID'}).fill('0x200')
 
   await page.getByRole('combobox', {name: 'Ignition', exact: true}).selectOption('OFF')
   await expect(page.getByText('Physical engine: Stopped', {exact: true})).toBeVisible()

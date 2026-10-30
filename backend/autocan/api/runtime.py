@@ -1,12 +1,17 @@
 """Single-process live pacing and bounded views of the existing core/trace stream."""
 
-from collections import deque
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
-from autocan.dbc import load_democar_database
-from autocan.events import RunEvent, Scalar
+from cantools.database.can import Database
+
+from autocan.api.observation import FRAME_LIMIT as FRAME_LIMIT
+from autocan.api.observation import SIGNAL_LIMIT as SIGNAL_LIMIT
+from autocan.api.observation import ObservationView as ObservationView
+from autocan.api.observation import make_view
+from autocan.dbc import profile_from_version
+from autocan.events import RunEvent
 from autocan.simulation import Simulation
 from autocan.traces import TraceRecorder, playback, verify_trace
 from autocan.validation import integer
@@ -16,113 +21,18 @@ TICK_NS = 50_000_000
 MAX_DURATION_NS = 120_000_000_000
 MAX_RUNS = 64
 MAX_COMMANDS = 256
-FRAME_LIMIT = 200
-SIGNAL_LIMIT = 400
-
-
-class ObservationView:
-    """Decode only delivered payloads; never read VehicleModel to draw a signal."""
-
-    def __init__(self) -> None:
-        self.frames: deque[dict[str, Scalar]] = deque(maxlen=FRAME_LIMIT)
-        self.signals: deque[dict[str, Scalar]] = deque(maxlen=SIGNAL_LIMIT)
-        self.pending: dict[int, dict[str, Scalar]] = {}
-        self.message = load_democar_database().get_message_by_name("EngineStatus")
-        self.state: dict[str, Scalar] = {
-            "sim_time_ns": 0,
-            "kombi_rpm": None,
-            "kombi_status": "UNAVAILABLE",
-            "last_received_ns": None,
-            "throttle_percent": 0,
-            "brake_percent": 0,
-            "gear": "P",
-            "shift_rejection": None,
-            "physical_speed_kph": 0,
-            "engine_running": True,
-            "ignition_state": "ON",
-            "engine_publishing": True,
-            "frames_published": 0,
-            "deliveries": 0,
-            "paused": True,
-        }
-
-    def consume(self, event: dict[str, Any]) -> None:
-        kind = event["event_kind"]
-        now = integer(event["sim_time_ns"], "event time")
-        self.state["sim_time_ns"] = now
-        if kind == "FramePublished":
-            frame = {
-                key: event[key]
-                for key in ("frame_id", "event_seq", "sim_time_ns", "can_id", "dlc", "payload_hex")
-            }
-            self.pending[int(event["frame_id"])] = frame
-            self.state["frames_published"] = event["frame_id"]
-        elif kind == "FrameDropped":
-            self.pending.pop(int(event["frame_id"]), None)
-        elif kind == "FrameReceived":
-            frame = self.pending.pop(int(event["frame_id"]))
-            decoded = self.message.decode_simple(
-                bytes.fromhex(str(frame["payload_hex"])), decode_choices=False
-            )["EngineRpm"]
-            if not isinstance(decoded, (int, float)):
-                raise ValueError("invalid decoded RPM")
-            rpm = float(decoded)
-            self.frames.append({**frame, "sim_time_ns": now, "rpm": rpm})
-            self.state.update(kombi_rpm=rpm, last_received_ns=now)
-            self.state["deliveries"] = int(self.state["deliveries"] or 0) + 1
-        elif kind == "EcuStatusChanged":
-            self.state["kombi_status"] = event["status"]
-        elif kind == "PhysicalMotionUpdated":
-            self.state["physical_speed_kph"] = event["physical_speed_kph"]
-        elif kind == "InputApplied":
-            if event["command_kind"] == "set_throttle":
-                self.state["throttle_percent"] = event["percent"]
-            elif event["command_kind"] == "set_brake":
-                self.state["brake_percent"] = event["percent"]
-            elif event["command_kind"] == "set_gear":
-                if event["accepted"]:
-                    self.state["gear"] = event["gear"]
-                self.state["shift_rejection"] = event["reason"]
-            elif event["command_kind"] == "set_engine_publishing":
-                self.state["engine_publishing"] = event["enabled"]
-            elif event["command_kind"] == "set_engine_running":
-                self.state["engine_running"] = event["enabled"]
-                if event["enabled"]:
-                    self.state["ignition_state"] = "ON"
-            elif event["command_kind"] == "set_ignition":
-                ignition = event["state"]
-                self.state["ignition_state"] = "ON" if ignition == "START" else ignition
-                if ignition in {"OFF", "ACC"}:
-                    self.state["engine_running"] = False
-                elif ignition == "START":
-                    self.state["engine_running"] = True
-        # Core already bounds pending delivery references to 256 (+1 provisional).
-        if len(self.pending) > 257:
-            raise ValueError("observation delivery buffer exceeded")
-
-    def sample(self, now: int) -> None:
-        self.state["sim_time_ns"] = now
-        point = {
-            "sim_time_ns": now,
-            "rpm": self.state["kombi_rpm"],
-            "status": self.state["kombi_status"],
-        }
-        if self.signals and self.signals[-1]["sim_time_ns"] == now:
-            self.signals[-1] = point
-        else:
-            self.signals.append(point)
 
 
 class Session:
-    def __init__(self, root: Path, *, seed: int) -> None:
+    def __init__(self, root: Path, *, seed: int, profile_id: str = "democar") -> None:
         root.mkdir(parents=True, exist_ok=True)
         if sum(1 for _ in root.iterdir()) >= MAX_RUNS:
             raise ValueError("run quota reached (64); archive local runs before creating more")
-        self.view = ObservationView()
+        self.view = make_view(profile_id)
         self.stopped = False
         self.error: str | None = None
         self.commands = 0
-        self.sim = Simulation(seed=seed, on_event=self._event)
+        self.sim = Simulation(seed=seed, profile_id=profile_id, on_event=self._event)
         self.id = self.sim.run_id
         try:
             self.recorder = TraceRecorder(root / self.id)
@@ -185,9 +95,15 @@ class Session:
             applied = self.sim.set_engine_running(engine_running)
         return applied
 
-    def offline(self, enabled: bool) -> int:
+    def offline(self, enabled: bool, ecu_id: str = "engine") -> int:
+        if ecu_id != "engine" and self.sim.profile_id != "democar-network":
+            raise ValueError("additional ECU require the network profile")
         self._command()
-        return self.sim.set_engine_publishing(not enabled)
+        return (
+            self.sim.set_engine_publishing(not enabled)
+            if ecu_id == "engine"
+            else self.sim.set_ecu_publishing(ecu_id, not enabled)
+        )
 
     def start(self) -> None:
         self._check_active()
@@ -232,7 +148,9 @@ class Session:
             "id": self.id,
             "mode": "live",
             "sim_time_ns": state["sim_time_ns"],
-            "state": {k: v for k, v in state.items() if k != "physical_rpm"},
+            "state": {
+                k: v for k, v in state.items() if k not in {"physical_rpm", "physical_coolant_c"}
+            },
             "frames": list(self.view.frames),
             "signals": list(self.view.signals),
             "stopped": self.stopped,
@@ -254,7 +172,9 @@ def saved_view(path: Path, until_ns: int | None = None) -> dict[str, Any]:
     meta = verify_trace(path)
     end = integer(meta["end_time_ns"], "end time")
     target = end if until_ns is None else min(until_ns, end)
-    view = ObservationView()
+    database = Database(strict=True)
+    database.add_dbc_string((path / "profile.dbc").read_text())
+    view = make_view(profile_from_version(meta["profile_version"]), database)
     # Only retain the final display window, even for a long CLI recording.
     first_sample = max(0, target - (SIGNAL_LIMIT - 1) * TICK_NS)
     next_sample = ((first_sample + TICK_NS - 1) // TICK_NS) * TICK_NS
