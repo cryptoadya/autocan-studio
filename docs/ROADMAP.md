@@ -170,3 +170,17 @@ See [v0.1 acceptance](V0_1_ACCEPTANCE.md) for executed checks and limitations.
   recording. Local verification and the screenshot are in [fault scenarios](FAULTS.md).
 - This completes the local M6 acceptance boundary. M7 datasets, ML, remote CI,
   publication and a new release are separate work.
+
+## M7 first pass — Parquet exchange and observer datasets
+
+- Typed streaming frames/deliveries, lossless auxiliary event/command tables,
+  physically separate ground truth, original DBC and verifiable provenance.
+- JSONL -> Parquet -> JSONL retains canonical events and supports existing
+  playback and a separate fresh rerun. Historical JSONL v0.1 playback remains.
+- A selected receiver's observation table uses only wire fields and receipt time;
+  drops, pending deliveries and other subscriptions cannot leak into its input.
+- New-directory-only output, bounded row groups/imports, checksums/semantic hashes
+  and explicit quotas. See [formats and CLI examples](PARQUET.md).
+- M7 remains in progress: multiple driving modes and reproducible multi-run
+  Dataset Factory generation are the next coherent pass. SQLite is deferred until
+  metadata queries require an index. ML starts in M8; no V1 release is implied.

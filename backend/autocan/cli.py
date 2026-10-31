@@ -164,8 +164,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         command.add_argument("run_directory", type=Path)
     studio = commands.add_parser("studio", help="build and serve the local M3 dashboard")
     studio.add_argument("--port", type=int, default=8000)
+    for name, help_text in (
+        ("trace-export", "export a verified JSONL run to a new Parquet bundle"),
+        ("trace-import", "restore a verified Parquet bundle as a new JSONL run"),
+        ("dataset", "export one receiver's CAN observations with separate fault labels"),
+    ):
+        command = commands.add_parser(name, help=help_text)
+        command.add_argument("source", type=Path)
+        command.add_argument("--output", type=Path, required=True)
+        command.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
+        if name == "dataset":
+            command.add_argument("--receiver", default="KOMBI")
     args = parser.parse_args(argv)
     try:
+        if args.command in ("trace-export", "trace-import", "dataset"):
+            from autocan.parquet import export_observer, export_trace, import_trace
+
+            if args.command == "dataset":
+                meta = export_observer(
+                    args.source, args.output, receiver_id=args.receiver, max_bytes=args.max_bytes
+                )
+            else:
+                operation = export_trace if args.command == "trace-export" else import_trace
+                meta = operation(args.source, args.output, max_bytes=args.max_bytes)
+            _write({"status": meta["status"], "path": str(args.output)}, stream=sys.stdout)
+            return 0
         if args.command == "studio":
             from autocan.api.launch import launch
 

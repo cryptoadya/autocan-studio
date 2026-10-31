@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — M7 Parquet exchange and observer datasets (first pass)
+
+- Add streaming typed Parquet frames/deliveries and separate event, command and
+  fault tables, preserving the original manifest, DBC, canonical events and hashes.
+- Restore verified bundles as new JSONL runs for existing playback and fresh
+  deterministic rerun. Keep historical v0.1 playback and strict rerun compatibility.
+- Export one receiver's actual wire observations and receipt times, with separate
+  fault labels and provenance. Exclude simulator internals from observation columns.
+- Bound row groups, import sizes and output quotas; reject corruption and symlink
+  artifacts and exclusively reserve new output directories without overwriting.
+- Driving-mode/run generation remains the next M7 pass. No ML or V1 release.
+
 ## Unreleased — M6 API/UI scenarios, faults and timeline
 
 - Add a built-in scenario catalog, strict REST inject/clear, DBC-derived editor
