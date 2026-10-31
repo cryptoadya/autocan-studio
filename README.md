@@ -3,7 +3,7 @@
 A local-first, synthetic CAN laboratory with a deterministic simulator and an
 independent anomaly-detection pipeline planned for later milestones.
 
-**Current development: M7 Parquet trace exchange and observer datasets (first pass); released baseline: v0.1.0 (M0–M4).**
+**Current development: M7 traces and seeded Dataset Factory; released baseline: v0.1.0 (M0–M4).**
 Engine, ABS/DSC, Transmission, Body and KOMBI exchange eight synthetic messages
 through an in-process python-can adapter. KOMBI decodes received RPM, speed,
 temperature, gear and ignition with independent freshness timers. Physical
@@ -15,9 +15,10 @@ fault types, three reproducible demonstrations and recorded manual inject/clear
 commands. The dashboard runs those scenarios, edits fault parameters and restores
 active faults and a bounded timeline in live and playback views. The headless CLI
 exports/imports verified Parquet runs and builds a selected receiver's raw CAN
-dataset with physically separate fault labels. Driving-mode generation and ML
-remain later work. See [fault scenarios](docs/FAULTS.md) and
-[Parquet exchange and datasets](docs/PARQUET.md).
+dataset with physically separate fault labels. Dataset Factory generates six
+seeded driving modes and bounded collections of normal/fault runs with a verified
+manifest. ML remains later work. See [fault scenarios](docs/FAULTS.md),
+[Parquet exchange](docs/PARQUET.md) and [Dataset Factory](docs/DATASET_FACTORY.md).
 
 ## Run the dashboard
 

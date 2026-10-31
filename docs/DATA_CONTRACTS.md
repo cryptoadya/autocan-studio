@@ -448,3 +448,10 @@ Normalized frame publications and per-receiver deliveries preserve the JSONL
 canonical sequence; hidden simulator provenance is excluded from the selected
 receiver's observation table. Fault truth is stored separately. Existing JSONL
 version 1, playback and exact-version rerun contracts remain unchanged.
+
+The [Dataset Factory](DATASET_FACTORY.md) composes these formats into a bounded
+collection of seeded driving runs. Its root manifest binds each saved scenario,
+source trace, Parquet bundle and selected-receiver dataset through a physical
+inventory and a logical collection hash. Run IDs and physical container bytes
+are excluded from that logical hash; hidden recipe/physics/fault metadata remain
+outside the observer input columns. No feature/window labels or splits are added.

@@ -1,8 +1,9 @@
 # Parquet trace exchange and observer datasets (M7 first pass)
 
-This pass adds bounded, headless storage primitives. JSONL remains the live
-recording and playback format. Dataset Factory driving-mode generation is the
-next M7 pass; features, splits, baselines and ML belong to M8 and later.
+These bounded, headless storage primitives also support the
+[Dataset Factory](DATASET_FACTORY.md), which generates driving modes and run
+collections. JSONL remains the live recording and playback format; features,
+splits, baselines and ML belong to M8 and later.
 
 ## Reproduce a round trip
 

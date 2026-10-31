@@ -164,6 +164,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         command.add_argument("run_directory", type=Path)
     studio = commands.add_parser("studio", help="build and serve the local M3 dashboard")
     studio.add_argument("--port", type=int, default=8000)
+    generate = commands.add_parser("generate", help="generate a bounded, seeded driving dataset")
+    generate.add_argument("--output", type=Path, required=True)
+    generate.add_argument("--runs", type=int, default=24)
+    generate.add_argument("--seed", type=_seed, default=42)
+    generate.add_argument(
+        "--modes", nargs="+", help="idle stop_and_go city cruise braking acceleration"
+    )
+    generate.add_argument("--fault-runs", type=int)
+    generate.add_argument(
+        "--fault-types", nargs="+", help="fault library types to balance across fault runs"
+    )
+    generate.add_argument("--receiver", default="observer")
+    generate.add_argument("--min-duration", type=_time_ns, default=8_000_000_000, metavar="SECONDS")
+    generate.add_argument(
+        "--max-duration", type=_time_ns, default=12_000_000_000, metavar="SECONDS"
+    )
+    generate.add_argument("--max-bytes", type=int, default=256 * 1024 * 1024)
+    verify_dataset = commands.add_parser("verify-dataset", help="verify a generated dataset series")
+    verify_dataset.add_argument("directory", type=Path)
     for name, help_text in (
         ("trace-export", "export a verified JSONL run to a new Parquet bundle"),
         ("trace-import", "restore a verified Parquet bundle as a new JSONL run"),
@@ -177,6 +196,34 @@ def main(argv: Sequence[str] | None = None) -> int:
             command.add_argument("--receiver", default="KOMBI")
     args = parser.parse_args(argv)
     try:
+        if args.command in ("generate", "verify-dataset"):
+            from autocan.factory import FactoryConfig, generate_factory, verify_factory
+
+            if args.command == "generate":
+                options = {
+                    "runs": args.runs,
+                    "seed": args.seed,
+                    "fault_runs": args.fault_runs,
+                    "receiver_id": args.receiver,
+                    "min_duration_ns": args.min_duration,
+                    "max_duration_ns": args.max_duration,
+                    "max_bytes": args.max_bytes,
+                }
+                for name in ("modes", "fault_types"):
+                    if getattr(args, name) is not None:
+                        options[name] = getattr(args, name)
+                generated = generate_factory(FactoryConfig.from_dict(options), args.output)
+            else:
+                generated = verify_factory(args.directory)
+            _write(
+                {
+                    "status": generated["status"],
+                    "runs": len(generated["runs"]),
+                    "semantic_sha256": generated["semantic_sha256"],
+                },
+                stream=sys.stdout,
+            )
+            return 0
         if args.command in ("trace-export", "trace-import", "dataset"):
             from autocan.parquet import export_observer, export_trace, import_trace
 

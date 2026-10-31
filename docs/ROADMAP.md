@@ -184,3 +184,18 @@ See [v0.1 acceptance](V0_1_ACCEPTANCE.md) for executed checks and limitations.
 - M7 remains in progress: multiple driving modes and reproducible multi-run
   Dataset Factory generation are the next coherent pass. SQLite is deferred until
   metadata queries require an index. ML starts in M8; no V1 release is implied.
+
+## M7 Dataset Factory — local storage/generation acceptance
+
+- Six nominal driving modes with verified physical motion/stops, balanced mode
+  cycles, varied durations/commands and independent fault planning from one seed.
+- Sequential generation of normal/fault runs with JSONL, normalized Parquet,
+  selected-receiver observations and physically separate fault truth. All eight
+  library fault types are available; original scenarios are saved per run.
+- Root artifact inventory, linked provenance and a reproducible collection hash;
+  `verify-dataset`, existing playback and separate fresh rerun retain their roles.
+- Per-output and collection quotas, bounded run counts/durations/row groups and
+  new-directory-only staged publication. No metadata index is currently needed.
+- See [Dataset Factory](DATASET_FACTORY.md) for commands, formats and limitations.
+  This implements the M7 headless storage/generation boundary. V1 release
+  acceptance/publication and M8 features/splits/baselines remain separate work.

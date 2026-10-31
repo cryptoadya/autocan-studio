@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — M7 driving modes and run collections
+
+- Add seeded idle, stop-and-go, city, cruise, braking and acceleration recipes,
+  with balanced mode cycles and varied pedal strengths, timing and durations.
+- Generate normal/fault run series through the existing simulator, JSONL recorder,
+  normalized Parquet exchange and selected-receiver observation export. Keep
+  fault planning independent from driver recipes and support all eight fault types.
+- Save per-run source scenarios and a collection manifest with linked provenance,
+  full artifact inventory and a semantic hash that excludes new run identities.
+- Add `generate` and `verify-dataset`, collection quotas and staged publication
+  without overwriting. Cover physical mode effects, deterministic series, fresh
+  reruns, Parquet reload, corruption and failed generation cleanup.
+- Feature windows, dataset splits and ML remain M8+. No V1 release is published.
+
 ## Unreleased — M7 Parquet exchange and observer datasets (first pass)
 
 - Add streaming typed Parquet frames/deliveries and separate event, command and
