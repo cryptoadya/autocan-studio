@@ -3,7 +3,7 @@
 A local-first, synthetic CAN laboratory with a deterministic simulator and an
 independent anomaly-detection pipeline planned for later milestones.
 
-**Current development: M7 traces and seeded Dataset Factory; released baseline: v0.1.0 (M0–M4).**
+**M7 implemented and locally verified; released baseline: v0.1.0 (M0–M4).**
 Engine, ABS/DSC, Transmission, Body and KOMBI exchange eight synthetic messages
 through an in-process python-can adapter. KOMBI decodes received RPM, speed,
 temperature, gear and ignition with independent freshness timers. Physical
@@ -19,6 +19,8 @@ dataset with physically separate fault labels. Dataset Factory generates six
 seeded driving modes and bounded collections of normal/fault runs with a verified
 manifest. ML remains later work. See [fault scenarios](docs/FAULTS.md),
 [Parquet exchange](docs/PARQUET.md) and [Dataset Factory](docs/DATASET_FACTORY.md).
+The [M7 acceptance report](docs/M7_ACCEPTANCE.md) records the completed checks,
+full collection round trips/reruns and current browser regression evidence.
 
 ## Run the dashboard
 

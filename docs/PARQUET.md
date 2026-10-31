@@ -1,4 +1,4 @@
-# Parquet trace exchange and observer datasets (M7 first pass)
+# Parquet trace exchange and observer datasets
 
 These bounded, headless storage primitives also support the
 [Dataset Factory](DATASET_FACTORY.md), which generates driving modes and run
@@ -95,6 +95,11 @@ These are metadata for reproducibility, **not feature columns**. Frame creation
 time, source ECU, frame/event IDs, physical state, driver commands, faults,
 scenario names, seeds and labels do not enter the observation table. There are
 no feature windows, frame classifications, train/test splits or models yet.
+
+Factory verification also reads the real saved tables, recomputes their semantic
+hashes and compares bundle events and observer observations/labels with the
+verified source run. This checks the selected receiver's actual deliveries rather
+than trusting declared metadata. See [M7 acceptance](M7_ACCEPTANCE.md).
 
 ## Bounds and publication
 

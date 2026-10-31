@@ -3,22 +3,31 @@
 from collections.abc import Iterator
 from dataclasses import dataclass
 from hashlib import sha256
+from itertools import zip_longest
 from pathlib import Path
 from random import Random
 from typing import TypedDict, cast
 
+from autocan.dbc import profile_version
 from autocan.faults import FAULT_TYPES, FaultSpec
 from autocan.network_profile import PLAN_BY_NAME, RECEIVERS
-from autocan.parquet import TABLES, _file_hash, _new_output, export_observer, export_trace
-from autocan.scenarios import Scenario
+from autocan.parquet import (
+    TABLES,
+    _file_hash,
+    _new_output,
+    export_observer,
+    export_trace,
+    verify_exports,
+)
+from autocan.scenarios import Scenario, ScenarioCommand
 from autocan.simulation import PHYSICS_TICK_NS
 from autocan.traces import (
     ARTIFACTS,
     DEFAULT_MAX_BYTES,
     TraceError,
+    _artifact_records,
     _hash,
     record_scenario,
-    verify_trace,
 )
 from autocan.validation import canonical_bytes, fields, integer, json_object, object_value
 
@@ -483,9 +492,24 @@ def verify_factory(root: Path) -> FactoryManifest:
             relative = f"runs/{recipe['index']:04d}"
             source = root / relative
             scenario_raw = canonical_bytes(recipe["scenario"]) + b"\n"
-            trace_meta = verify_trace(source / "trace")
-            observed = _read_json(source / "observer/manifest.json")
-            parquet = _read_json(source / "parquet/manifest.json")
+            trace_meta, observed = verify_exports(
+                source / "trace", source / "parquet", source / "observer"
+            )
+            planned = Scenario.from_dict(recipe["scenario"])
+            actual_commands = (
+                ScenarioCommand.from_record(event)
+                for event in _artifact_records(source / "trace", "commands.jsonl")
+            )
+            for actual, expected_command in zip_longest(actual_commands, planned.commands):
+                if actual != expected_command:
+                    raise TraceError("applied commands do not match the saved recipe")
+            configuration = object_value(trace_meta["configuration"], "configuration")
+            if (
+                trace_meta["profile_version"] != profile_version(planned.profile_id)
+                or configuration["delivery_delay_ns"] != planned.delivery_delay_ns
+                or configuration["drop_probability"] != planned.drop_probability
+            ):
+                raise TraceError("source configuration does not match the saved recipe")
             observation = object_value(
                 object_value(observed["artifacts"], "artifacts")["observations.parquet"],
                 "observations",
@@ -507,7 +531,6 @@ def verify_factory(root: Path) -> FactoryManifest:
                 or _file_hash(source / "scenario.json") != row["scenario_sha256"]
                 or observed.get("receiver_id") != config.receiver_id
                 or observed.get("trace_manifest") != trace_meta
-                or parquet.get("trace_manifest") != trace_meta
                 or trace_meta["end_time_ns"] != row["duration_ns"]
                 or object_value(trace_meta["configuration"], "configuration")["seed"] != row["seed"]
             ):

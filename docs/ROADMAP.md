@@ -199,3 +199,16 @@ See [v0.1 acceptance](V0_1_ACCEPTANCE.md) for executed checks and limitations.
 - See [Dataset Factory](DATASET_FACTORY.md) for commands, formats and limitations.
   This implements the M7 headless storage/generation boundary. V1 release
   acceptance/publication and M8 features/splits/baselines remain separate work.
+
+## M7 final acceptance — complete locally
+
+- Verified every M7 criterion, retained historical JSONL playback and completed
+  24 generated-run Parquet imports/playbacks plus separate fresh reruns covering
+  203,527 canonical events. Checksums, source linkage and semantic hashes agree.
+- Corrected collection verification to read/recompute derived tables and compare
+  observer rows/labels and actual applied commands with their recorded sources.
+- Current Python, frontend and eight real Chromium E2E checks passed. A built
+  wheel also runs the headless generator outside the source checkout.
+- [Acceptance report](M7_ACCEPTANCE.md) records evidence, reproduction, the browser
+  screenshot and explicit limits. No M7-local acceptance work remains; M8 and
+  release preparation/publication are separate actions.

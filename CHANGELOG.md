@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — M7 final acceptance and provenance checks
+
+- Recompute nested Parquet/observer schemas and semantic hashes during collection
+  verification, comparing every event, observation and fault label to its source.
+- Link saved driving recipes to the actual applied command log, profile and
+  transport settings; reject rehashed but internally inconsistent collections.
+- Add regression coverage for both verifier defects. Complete local M7 acceptance
+  with full generated-collection round trips/reruns, Python/frontend/browser
+  checks, built-wheel startup and a current acceptance report/screenshot.
+- No ML, version bump or release publication is included.
+
 ## Unreleased — M7 driving modes and run collections
 
 - Add seeded idle, stop-and-go, city, cruise, braking and acceleration recipes,

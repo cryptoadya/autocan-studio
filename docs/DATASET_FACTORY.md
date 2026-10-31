@@ -102,7 +102,9 @@ same compatible core/runtime preserves this hash, even though run IDs and
 physical checksums can change. Different output directories do not affect it.
 
 `verify-dataset` checks bounded manifests, the fixed inventory, all physical
-checksums/sizes, seeded recipes, linked provenance, source JSONL integrity and the
+checksums/sizes, nested Parquet schemas/semantic hashes and their event/observation/
+label equivalence with the verified JSONL source. It checks the seeded recipes
+against applied commands, profile/transport settings, linked provenance and the
 collection semantic hash. It rejects missing/corrupt artifacts, symlink path
 components, unexpected inventory paths, unsupported versions and recipe changes.
 It reads the saved files without running physics. Verification is an integrity
@@ -138,7 +140,7 @@ quota enforcement can briefly overshoot by those bounded buffers/manifests.
 No SQLite catalog, ambient-temperature/load randomization, ML, release tag or
 publication is part of this pass.
 
-## Local acceptance
+## Initial implementation acceptance
 
 The implementation pass ran `uv run --locked pytest` (324 passed), Ruff lint
 and formatting checks, strict mypy and `uv build --no-sources` successfully.
@@ -149,3 +151,6 @@ The default 24-run collection was also generated and verified: four trips per
 mode, six fault runs, 384 artifacts and 68,080,321 bytes including its manifest.
 Generated data stays ignored under `data/`. Frontend/browser checks were not run
 for this CLI-only pass; no remote CI or release result is claimed.
+
+The subsequent [M7 final acceptance](M7_ACCEPTANCE.md) adds the provenance fixes,
+full collection round trips/reruns and current Python/frontend/browser results.

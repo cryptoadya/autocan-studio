@@ -1,16 +1,20 @@
 """Generated modes and series must demonstrate motion and reproduce real traces."""
 
 import json
+import shutil
 import subprocess
 import sys
+from hashlib import sha256
 from pathlib import Path
 
+import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
 from autocan.scenarios import Scenario
 from autocan.simulation import Simulation
 from autocan.traces import TraceError, playback, rerun
+from autocan.validation import object_value
 
 
 @pytest.mark.parametrize(
@@ -240,4 +244,74 @@ def test_verifier_rejects_changed_recipes_paths_and_symlink_directories(tmp_path
     observer.rename(outside)
     observer.symlink_to(outside, target_is_directory=True)
     with pytest.raises(TraceError, match="symlink"):
+        verify_factory(target)
+
+
+@pytest.mark.parametrize("table", ["observer/observations.parquet", "parquet/frames.parquet"])
+def test_verifier_recomputes_nested_table_semantics_after_physical_rehash(
+    tmp_path: Path, table: str
+) -> None:
+    from autocan.factory import FactoryConfig, generate_factory, verify_factory
+
+    target = tmp_path / "series"
+    generate_factory(FactoryConfig(runs=1, modes=("idle",), fault_runs=0), target)
+    path = target / "runs/0000" / table
+    original = pq.read_table(path)
+    rows = original.to_pylist()
+    rows[0]["payload"] = b"\xff" * rows[0]["dlc"]
+    pq.write_table(pa.Table.from_pylist(rows, schema=original.schema), path, row_group_size=256)
+    # Refresh physical inventories while retaining the independent semantic hashes.
+    nested = path.parent / "manifest.json"
+    meta = json.loads(nested.read_text())
+    meta["artifacts"][path.name].update(
+        bytes=path.stat().st_size, sha256=sha256(path.read_bytes()).hexdigest()
+    )
+    nested.write_text(json.dumps(meta))
+    root = target / "manifest.json"
+    meta = json.loads(root.read_text())
+    for changed in (path, nested):
+        meta["artifacts"][changed.relative_to(target).as_posix()].update(
+            bytes=changed.stat().st_size, sha256=sha256(changed.read_bytes()).hexdigest()
+        )
+    root.write_text(json.dumps(meta))
+    with pytest.raises(TraceError, match="semantic|projection|source"):
+        verify_factory(target)
+
+
+def test_verifier_links_saved_recipe_to_actual_applied_commands(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    from autocan.factory import FactoryConfig, _series_hash, generate_factory, verify_factory
+    from autocan.parquet import export_observer, export_trace
+    from autocan.scenarios import ScenarioCommand
+    from autocan.traces import record_scenario
+
+    config = FactoryConfig(runs=1, modes=("idle",), fault_runs=0)
+    target = tmp_path / "series"
+    meta = generate_factory(config, target)
+    run = target / "runs/0000"
+    scenario = Scenario.load(run / "scenario.json")
+    for name in ("trace", "parquet", "observer"):
+        shutil.rmtree(run / name)
+    changed = replace(
+        scenario, commands=(*scenario.commands, ScenarioCommand(1_000_000_000, "set_throttle", 100))
+    )
+    trace = record_scenario(changed, run / "trace")
+    export_trace(run / "trace", run / "parquet")
+    observation = export_observer(run / "trace", run / "observer", receiver_id="observer")
+    row = meta["runs"][0]
+    row["run_id"] = str(trace["run_id"])
+    row["trace_semantic_sha256"] = str(trace["semantic_sha256"])
+    observation_artifacts = object_value(observation["artifacts"], "artifacts")
+    observation_info = object_value(observation_artifacts["observations.parquet"], "observations")
+    row["observation_semantic_sha256"] = str(observation_info["semantic_sha256"])
+    for name in meta["artifacts"]:
+        path = target / name
+        meta["artifacts"][name] = {
+            "bytes": path.stat().st_size,
+            "sha256": sha256(path.read_bytes()).hexdigest(),
+        }
+    meta["semantic_sha256"] = _series_hash(config, meta["runs"])
+    (target / "manifest.json").write_text(json.dumps(meta))
+    with pytest.raises(TraceError, match="command|recipe"):
         verify_factory(target)
