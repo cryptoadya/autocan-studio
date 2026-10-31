@@ -386,7 +386,7 @@ explicitly physical model telemetry, never a KOMBI/CAN speed measurement. Model
 speed is integrated in m/s rounded to 12 decimal places; canonical km/h samples
 are rounded to 9 places. Playback consumes only saved samples and command results.
 Older recordings without motion commands retain their original stationary P
-state. New recordings use core version `m5-network-1` and store the motion model
+state. New recordings use core version `m6-faults-1` and store the motion model
 version/settings in their manifest; old-core rerun still requires the old core.
 Saved-run identifiers are UUID hex strings, not filesystem paths. Failed or
 incomplete recordings are omitted from the saved-run selector; they still consume
@@ -419,3 +419,12 @@ API sessions are limited to 120 virtual seconds, 256 commands and the existing
 HTTP POST/PATCH bodies are capped at 4096 bytes. The source launcher bounds
 concurrent connections to 32 and incoming WS messages/queues to 4096 bytes / 8.
 There is no arbitrary upload, export format, scenario editor or remote API in M3.
+
+## M6 headless fault commands
+
+The network profile accepts validated `inject_fault` and `clear_fault` core/CLI
+commands. They use the same input phase, canonical time/order and separate
+commands/ground-truth artifacts as existing controls. Publication, encoding,
+delivery, overlap/clear, RNG and compatibility rules are specified in
+[fault contracts](FAULTS.md). The current HTTP API/UI does not yet expose these
+commands; its M5 publication controls remain available.

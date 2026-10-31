@@ -3,14 +3,17 @@
 A local-first, synthetic CAN laboratory with a deterministic simulator and an
 independent anomaly-detection pipeline planned for later milestones.
 
-**Current development: M5 ECU network and vehicle controls; released baseline: v0.1.0 (M0–M4).**
+**Current development: M6 fault library and CLI scenarios (first pass); released baseline: v0.1.0 (M0–M4).**
 Engine, ABS/DSC, Transmission, Body and KOMBI exchange eight synthetic messages
 through an in-process python-can adapter. KOMBI decodes received RPM, speed,
 temperature, gear and ignition with independent freshness timers. Physical
 ignition/Start/Stop, throttle/brake/gear and publication controls are recorded;
 runs can be saved, played back and recomputed. The normal urban drive exercises
 all five ECU. This is a synthetic laboratory, not an OEM emulator or a physical
-vehicle diagnostic tool. The fault library, datasets and ML remain later milestones.
+vehicle diagnostic tool. The headless network fault library now provides eight
+fault types, three reproducible demonstrations and recorded manual inject/clear
+commands. M6's API/UI parameters and timeline are the next pass; datasets and ML
+remain later milestones. See [fault scenarios and contracts](docs/FAULTS.md).
 
 ## Run the dashboard
 

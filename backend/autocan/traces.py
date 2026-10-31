@@ -15,6 +15,7 @@ from typing import BinaryIO, Self
 
 from autocan.dbc import profile_bytes, profile_from_version, profile_version
 from autocan.events import CanFrame, RunEvent, Scalar
+from autocan.faults import FaultSpec
 from autocan.network_profile import (
     ECU_IDS,
     GEARS,
@@ -27,7 +28,7 @@ from autocan.scenarios import MAX_COMMANDS, Scenario, ScenarioCommand, command_p
 from autocan.simulation import Simulation
 from autocan.validation import canonical_bytes, fields, integer, json_object, number, object_value
 
-CORE_VERSION = "m5-network-1"
+CORE_VERSION = "m6-faults-1"
 DEFAULT_MAX_BYTES = 16 * 1024 * 1024
 MAX_MANIFEST_BYTES = 64 * 1024
 MAX_LINE_BYTES = 64 * 1024
@@ -75,6 +76,7 @@ def _core_hash() -> str:
         "network_profile",
         "network_ecu",
         "network_runtime",
+        "faults",
     ):
         digest.update(name.encode() + b"\0")
         digest.update(files("autocan").joinpath(f"{name}.py").read_bytes())
@@ -458,6 +460,10 @@ def _validate_event(record: dict[str, object], meta: dict[str, object]) -> None:
         )
         if command_kind == "set_ecu_publishing":
             result_fields.add("ecu_id")
+        if command_kind in ("inject_fault", "clear_fault"):
+            if not network or type(record.get("accepted")) is not bool:
+                raise TraceError("invalid network fault command result")
+            result_fields.add("accepted")
         fields(
             record,
             base | {"command_seq", "applied_at_ns", "command_kind", parameter} | result_fields,
@@ -475,10 +481,7 @@ def _validate_event(record: dict[str, object], meta: dict[str, object]) -> None:
         integer(record["command_seq"], "command_seq", minimum=1)
         if integer(record["applied_at_ns"], "applied time") != now:
             raise TraceError("command time mismatch")
-        command = {"at_ns": now, "kind": command_kind, parameter: record[parameter]}
-        if command_kind == "set_ecu_publishing":
-            command["ecu_id"] = record["ecu_id"]
-        ScenarioCommand.from_dict(command)
+        ScenarioCommand.from_record(record)
     elif kind == "PhysicalMotionUpdated":
         fields(record, base | {"physical_speed_kph"})
         motion = object_value(
@@ -519,9 +522,17 @@ def _validate_event(record: dict[str, object], meta: dict[str, object]) -> None:
             base
             | {"fault_id", "type", "target_ecu", "target_message_id", "start_at_ns", "seed"}
             | ({"end_at_ns"} if kind == "FaultCleared" else set()),
+            {"fault_json"} if network else set(),
         )
         _text(record["fault_id"], "fault ID")
-        if (
+        if "fault_json" in record:
+            spec = FaultSpec.from_dict(json_object(_text(record["fault_json"], "fault JSON")))
+            if any(
+                record[key] != spec.as_dict()[key]
+                for key in ("fault_id", "type", "target_ecu", "target_message_id", "seed")
+            ):
+                raise TraceError("fault metadata does not match its specification")
+        elif (
             record["type"] != "ecu_offline"
             or record["target_ecu"] not in (ECU_IDS if network else ("engine",))
             or (
@@ -653,15 +664,7 @@ def rerun(root: Path) -> dict[str, object]:
             for index, record in enumerate(group):
                 if index >= MAX_COMMANDS:
                     raise TraceError("too many simultaneous commands")
-                parameter = command_parameter(record["command_kind"])
-                command = {
-                    "at_ns": time_ns,
-                    "kind": record["command_kind"],
-                    parameter: record[parameter],
-                }
-                if record["command_kind"] == "set_ecu_publishing":
-                    command["ecu_id"] = record["ecu_id"]
-                ScenarioCommand.from_dict(command).schedule(sim)
+                ScenarioCommand.from_record(record).schedule(sim)
             sim.advance_to(time_ns)
         sim.advance_to(integer(meta["end_time_ns"], "end time"))
         saved_state = object_value(meta["final_state"], "final state")

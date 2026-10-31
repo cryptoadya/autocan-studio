@@ -9,3 +9,11 @@ Rerun under a newer core is expected to reject the source-hash mismatch.
 
 This small original DemoCar fixture is MIT licensed with the project. It contains
 no real vehicle data, OEM profile, secrets or personal data.
+
+`m6_faults_golden.json` contains compact canonical observation projections for
+the original `abs_missing_frames`, `rpm_spike` and `timing_jitter` scenarios on
+the `democar-0.2.0` DBC. Deadlines and little-endian quarter-RPM payloads are
+hand-derived; jitter arrivals were captured from the versioned fault RNG with
+run seed 42 and jitter seed 7. Tests compare these fixed observations and also
+record/verify/rerun each scenario via the CLI. This small fixture is MIT licensed
+with the project; it is synthetic and is not a real vehicle capture or dataset.

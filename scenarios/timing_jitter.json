@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "profile_id": "democar-network",
+  "duration_ns": 400000000,
+  "seed": 42,
+  "commands": [
+    {"at_ns": 0, "kind": "set_throttle", "percent": 50},
+    {"at_ns": 100000000, "kind": "inject_fault", "fault": {
+      "fault_id": "engine-frequency", "type": "message_frequency_anomaly", "target_ecu": "engine",
+      "target_message_id": 512, "parameters": {"period_ns": 60000000}
+    }},
+    {"at_ns": 100000000, "kind": "inject_fault", "fault": {
+      "fault_id": "engine-jitter", "type": "message_delay", "target_ecu": "engine",
+      "target_message_id": 512, "parameters": {"min_ns": 0, "max_ns": 60000000}, "seed": 7
+    }},
+    {"at_ns": 300000000, "kind": "clear_fault", "fault_id": "engine-frequency"},
+    {"at_ns": 300000000, "kind": "clear_fault", "fault_id": "engine-jitter"}
+  ]
+}

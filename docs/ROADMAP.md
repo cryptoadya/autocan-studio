@@ -143,3 +143,15 @@ See [v0.1 acceptance](V0_1_ACCEPTANCE.md) for executed checks and limitations.
 - Local verification: 224 Python tests, 16 frontend tests, 4 Chromium acceptance
   tests, Ruff, mypy, TypeScript and production build passed. Remote CI/release
   remain separate delivery actions. The next milestone is M6 fault scenarios.
+
+## M6 first pass — fault library and CLI scenarios
+
+- Eight fault types for the network profile, strict parameter/target validation,
+  explicit in-DBC encoding and bounded active/pending state. See [fault contracts](FAULTS.md).
+- Canonical inject/clear, specified composition and independent RNG. Clear/reset,
+  pending deliveries, publication gates and physical state have distinct effects.
+- Three CLI demonstrations, golden observation projections, saved manual commands,
+  verified playback and rerun without the source JSON files. Old playback is retained.
+- This pass leaves API/UI fault parameters, scenario selection, timeline and the
+  M6 visual/browser demonstrations for the next task. M6 is not complete; M7
+  datasets and ML work have not started. No external delivery is implied.

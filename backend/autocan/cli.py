@@ -11,9 +11,10 @@ from typing import TextIO
 
 from autocan.dbc import PROFILES
 from autocan.events import RunEvent
+from autocan.faults import FaultSpec
 from autocan.scenarios import Scenario
 from autocan.simulation import Simulation
-from autocan.traces import playback, record_scenario, rerun
+from autocan.traces import TraceRecorder, playback, record_scenario, rerun
 from autocan.vehicle import validate_throttle
 
 
@@ -60,15 +61,17 @@ def _event(event: RunEvent) -> None:
     _write(event.as_dict(), stream=sys.stdout)
 
 
-def _shell(sim: Simulation) -> int:
+def _shell(sim: Simulation, *, recording: bool = False) -> int:
     if sys.stdin.isatty():
         print(
             "Commands: throttle PERCENT, brake PERCENT, gear P|R|N|D, "
             "run MILLISECONDS, offline [ECU], online [ECU], "
-            "ignition OFF|ACC|ON|START, engine start|stop, pause, resume, step, reset, state, quit",
+            "ignition OFF|ACC|ON|START, engine start|stop, inject FILE.json, clear FAULT_ID, "
+            "pause, resume, step, reset, state, quit",
             file=sys.stderr,
         )
     for line in sys.stdin:
+        advancing = False
         try:
             parts = shlex.split(line)
             if not parts:
@@ -80,10 +83,16 @@ def _shell(sim: Simulation) -> int:
                     sim.set_brake(float(value))
                 case ["gear", value]:
                     sim.set_gear(value)
+                case ["inject", path]:
+                    sim.inject_fault(FaultSpec.load(Path(path)))
+                case ["clear", identifier]:
+                    sim.clear_fault(identifier)
                 case ["run", value]:
                     now = sim.state()["sim_time_ns"]
                     assert isinstance(now, int)
-                    sim.advance_to(now + _time_ns(value, scale=1_000_000))
+                    target = now + _time_ns(value, scale=1_000_000)
+                    advancing = True
+                    sim.advance_to(target)
                 case ["pause"]:
                     sim.pause()
                 case ["offline"]:
@@ -103,8 +112,13 @@ def _shell(sim: Simulation) -> int:
                 case ["resume"]:
                     sim.resume()
                 case ["step"]:
+                    advancing = True
                     sim.step()
                 case ["reset"]:
+                    if recording:
+                        raise ValueError(
+                            "reset requires a new recording; exit and start a new shell"
+                        )
                     sim.reset()
                 case ["state"]:
                     pass
@@ -113,7 +127,10 @@ def _shell(sim: Simulation) -> int:
                 case _:
                     raise ValueError("unknown command or wrong number of arguments")
             _write(sim.state(), stream=sys.stdout)
-        except (ValueError, argparse.ArgumentTypeError) as exc:
+        except (ValueError, OSError, argparse.ArgumentTypeError) as exc:
+            if advancing:
+                # Core failures abort recording; input/file validation stays recoverable.
+                raise
             print(f"error: {exc}", file=sys.stderr)
     return 0
 
@@ -128,6 +145,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     demo.add_argument("--events", action="store_true", help="stream events; summary goes to stderr")
     shell = commands.add_parser("shell", help="line-oriented controls; run takes milliseconds")
     shell.add_argument("--seed", type=_seed, default=0)
+    shell.add_argument(
+        "--record", type=Path, help="save applied commands/events in a new directory"
+    )
     for command_parser in (demo, shell):
         command_parser.add_argument("--profile", choices=tuple(PROFILES), default="democar")
     run = commands.add_parser("run", help="record a declarative JSON scenario into a new directory")
@@ -171,6 +191,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "rerun":
             _write(rerun(args.run_directory), stream=sys.stdout)
             return 0
+        if args.command == "shell" and args.record is not None:
+            with TraceRecorder(args.record) as recorder:
+                with Simulation(
+                    seed=args.seed, profile_id=args.profile, on_event=recorder.write
+                ) as sim:
+                    recorder.begin(sim)
+                    result = _shell(sim, recording=True)
+                    recorder.finish(sim.state())
+                    return result
         sink = _event if args.command == "demo" and args.events else None
         with Simulation(seed=args.seed, on_event=sink, profile_id=args.profile) as sim:
             if args.command == "shell":

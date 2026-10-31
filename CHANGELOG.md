@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — M6 fault library and CLI scenarios (first pass)
+
+- Add eight validated network faults at encoding, scheduling and delivery
+  boundaries, with independent seeded RNG, explicit DBC range errors, bounded
+  active/pending state and deterministic overlap/clear rules.
+- Preserve exact frame identity under reordered delayed deliveries. Keep
+  publication gates, physical engine controls and CAN receiver inputs separate.
+- Add scenario inject/clear, interactive CLI specification files and optional
+  shell recording. Save applied results/specifications for verified playback
+  and manifest-based rerun without the source scenario or fault file.
+- Add ABS loss, RPM spike and timing jitter scenarios with golden trace
+  projections and focused regression/CLI coverage. Historical playback remains
+  supported; exact-core rerun uses the new `m6-faults-1` source hash.
+- M6 remains in progress: API/UI scenario controls, parameters, timeline and
+  browser demonstrations are the next coherent pass. No release is implied.
+
 ## Unreleased — M5 ECU network
 
 - Add the versioned DemoCar 0.2 profile: five publishing/subscribing ECU, eight
