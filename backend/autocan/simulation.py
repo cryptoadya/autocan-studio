@@ -1,4 +1,4 @@
-"""Headless composition; no recorder, fault injector, API, or wall-clock pacing."""
+"""Headless composition with canonical inputs and no wall-clock pacing."""
 
 import math
 from collections.abc import Callable
@@ -14,6 +14,7 @@ from autocan.clock import Phase, SimulationClock, validate_time
 from autocan.dbc import profile_version
 from autocan.ecu import EngineEcu, Kombi, KombiState
 from autocan.events import RunEvent, Scalar
+from autocan.faults import FaultLibrary, FaultSpec, fault_id
 from autocan.network_profile import ECU_IDS
 from autocan.network_runtime import NetworkRuntime
 from autocan.vehicle import (
@@ -82,6 +83,7 @@ class Simulation:
         self._offline_fault: tuple[str, int] | None = None
         self._delivery_rng = Random(int(rng_stream_seeds(self._seed)["delivery"], 16))
         self._network: NetworkRuntime | None = None
+        self._fault_library = FaultLibrary(self._seed)
         self._bus: BusAdapter
         if self._profile_id == "democar-network":
             self._network = NetworkRuntime(
@@ -92,6 +94,7 @@ class Simulation:
                 self._seed,
                 self._delivery_delay_ns,
                 self._drop_probability,
+                self._fault_library,
                 self._bus_factory,
             )
             self._bus = self._network.bus
@@ -193,6 +196,64 @@ class Simulation:
             )
 
         return self._queue_input(at_ns, apply)
+
+    def inject_fault(self, spec: FaultSpec, *, at_ns: int | None = None) -> int:
+        self._check_open()
+        if self._network is None:
+            raise ValueError("fault library requires the network profile")
+        spec = FaultSpec.from_dict(spec.as_dict())
+
+        def apply() -> None:
+            accepted = self._fault_library.activate(spec, self._clock.now_ns)
+            self._command_seq += 1
+            self._emit(
+                "InputApplied",
+                command_seq=self._command_seq,
+                applied_at_ns=self._clock.now_ns,
+                command_kind="inject_fault",
+                fault_json=spec.json(),
+                accepted=accepted,
+            )
+            if accepted:
+                self._fault_marker("FaultActivated", spec, self._clock.now_ns)
+
+        return self._queue_input(at_ns, apply)
+
+    def clear_fault(self, identifier: str, *, at_ns: int | None = None) -> int:
+        self._check_open()
+        if self._network is None:
+            raise ValueError("fault library requires the network profile")
+        fault_id(identifier)
+
+        def apply() -> None:
+            active = self._fault_library.clear(identifier)
+            self._command_seq += 1
+            self._emit(
+                "InputApplied",
+                command_seq=self._command_seq,
+                applied_at_ns=self._clock.now_ns,
+                command_kind="clear_fault",
+                fault_id=identifier,
+                accepted=active is not None,
+            )
+            if active is not None:
+                self._fault_marker("FaultCleared", active.spec, active.start_at_ns)
+
+        return self._queue_input(at_ns, apply)
+
+    def _fault_marker(self, kind: str, spec: FaultSpec, start: int) -> None:
+        data: dict[str, Scalar] = {
+            "fault_id": spec.fault_id,
+            "type": spec.type,
+            "target_ecu": spec.target_ecu,
+            "target_message_id": spec.target_message_id,
+            "start_at_ns": start,
+            "seed": spec.seed,
+            "fault_json": spec.json(),
+        }
+        if kind == "FaultCleared":
+            data["end_at_ns"] = self._clock.now_ns
+        self._emit(kind, **data)
 
     def set_engine_publishing(self, enabled: bool, *, at_ns: int | None = None) -> int:
         self._check_open()
@@ -393,6 +454,10 @@ class Simulation:
             "motion": asdict(self._vehicle.motion_config),
             "motion_model_version": "simple-longitudinal-v1",
             "network": self._network.configuration() if self._network is not None else None,
+            "fault_library_version": "network-faults-v1",
+            "fault_rng_algorithm": (
+                "sha256:autocan-fault-v1:run_seed:fault_seed:fault_id/python.Random"
+            ),
         }
 
     def advance_to(self, target_ns: int) -> None:
@@ -439,6 +504,7 @@ class Simulation:
             "engine_running": self._vehicle.engine_running,
             "ignition_state": self._vehicle.ignition_state,
             "engine_publishing": self._engine_publishing,
+            "active_fault_count": len(self._fault_library.active),
         }
         if self._network is not None:
             state.update(self._network.state())

@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased — M6 API/UI scenarios, faults and timeline
+
+- Add a built-in scenario catalog, strict REST inject/clear, DBC-derived editor
+  metadata and scenario sessions that save at their exact virtual duration.
+  Keep publication-gate requests compatible and reserve shared command quotas.
+- Add scenario/seed selection, all eight fault editors, active cards with clear,
+  and a bounded demo-ground-truth timeline with timestamp seeking in playback.
+  Pause, reconnect, reset and saved views preserve canonical application rules.
+- Record optional scenario provenance and package the three original JSON demos
+  in the wheel. Saved playback and rerun do not require those source files.
+- Stream reordered observer deliveries by display sequence and show synthetic
+  delivery delays in CAN Monitor. Prevent duplicate panels during run changes.
+- Add API/component/browser acceptance for three scenario effects, manual
+  injection/clear, saved timelines, deterministic rerun and a mobile viewport.
+  M6 local acceptance is documented in `docs/FAULTS.md`; M7 has not started.
+
+## Unreleased — M6 fault library and CLI scenarios (first pass)
+
+- Add eight validated network faults at encoding, scheduling and delivery
+  boundaries, with independent seeded RNG, explicit DBC range errors, bounded
+  active/pending state and deterministic overlap/clear rules.
+- Preserve exact frame identity under reordered delayed deliveries. Keep
+  publication gates, physical engine controls and CAN receiver inputs separate.
+- Add scenario inject/clear, interactive CLI specification files and optional
+  shell recording. Save applied results/specifications for verified playback
+  and manifest-based rerun without the source scenario or fault file.
+- Add ABS loss, RPM spike and timing jitter scenarios with golden trace
+  projections and focused regression/CLI coverage. Historical playback remains
+  supported; exact-core rerun uses the new `m6-faults-1` source hash.
+- M6 remains in progress: API/UI scenario controls, parameters, timeline and
+  browser demonstrations are the next coherent pass. No release is implied.
+
 ## Unreleased — M5 ECU network
 
 - Add the versioned DemoCar 0.2 profile: five publishing/subscribing ECU, eight

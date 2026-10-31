@@ -1,6 +1,6 @@
 import { render, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import { useLiveSocket } from './api'
+import { request, useLiveSocket } from './api'
 import { useStudio } from './store'
 
 class Socket {
@@ -29,4 +29,12 @@ test('server restart reconciles a missing active run instead of retrying an obso
   Socket.latest.close()
   await waitFor(() => expect(useStudio.getState().live).toBeNull())
   expect(useStudio.getState().connected).toBe(false)
+})
+
+test('fault validation shows the owning error instead of a generic HTTP status', async () => {
+  vi.stubGlobal('fetch', async () => Response.json({detail: [
+    {type: 'missing', msg: 'Field required'},
+    {type: 'value_error', msg: 'Value error, signal value is not exactly representable by the DBC'},
+  ]}, {status: 422}))
+  await expect(request('/api/simulations/run/faults', 'POST', {})).rejects.toThrow('not exactly representable')
 })

@@ -10,8 +10,11 @@ from autocan.api.observation import FRAME_LIMIT as FRAME_LIMIT
 from autocan.api.observation import SIGNAL_LIMIT as SIGNAL_LIMIT
 from autocan.api.observation import ObservationView as ObservationView
 from autocan.api.observation import make_view
+from autocan.api.timeline import FaultTimeline
 from autocan.dbc import profile_from_version
 from autocan.events import RunEvent
+from autocan.faults import FaultSpec, fault_id
+from autocan.scenarios import Scenario
 from autocan.simulation import Simulation
 from autocan.traces import TraceRecorder, playback, verify_trace
 from autocan.validation import integer
@@ -24,19 +27,44 @@ MAX_COMMANDS = 256
 
 
 class Session:
-    def __init__(self, root: Path, *, seed: int, profile_id: str = "democar") -> None:
+    def __init__(
+        self,
+        root: Path,
+        *,
+        seed: int,
+        profile_id: str = "democar",
+        scenario: Scenario | None = None,
+        scenario_info: dict[str, object] | None = None,
+    ) -> None:
+        if scenario is not None and (
+            scenario.duration_ns > MAX_DURATION_NS or scenario.profile_id != profile_id
+        ):
+            raise ValueError("scenario exceeds the duration limit or uses a different profile")
         root.mkdir(parents=True, exist_ok=True)
         if sum(1 for _ in root.iterdir()) >= MAX_RUNS:
             raise ValueError("run quota reached (64); archive local runs before creating more")
         self.view = make_view(profile_id)
+        self.timeline = FaultTimeline()
+        self.scenario = scenario
+        self.scenario_info = scenario_info
+        self.duration_ns = scenario.duration_ns if scenario is not None else MAX_DURATION_NS
         self.stopped = False
         self.error: str | None = None
-        self.commands = 0
-        self.sim = Simulation(seed=seed, profile_id=profile_id, on_event=self._event)
+        self.commands = len(scenario.commands) if scenario is not None else 0
+        self.sim = Simulation(
+            seed=seed,
+            profile_id=profile_id,
+            on_event=self._event,
+            delivery_delay_ns=scenario.delivery_delay_ns if scenario else 0,
+            drop_probability=scenario.drop_probability if scenario else 0,
+        )
         self.id = self.sim.run_id
         try:
             self.recorder = TraceRecorder(root / self.id)
-            self.recorder.begin(self.sim)
+            self.recorder.begin(self.sim, scenario=scenario_info)
+            if scenario is not None:
+                for command in scenario.commands:
+                    command.schedule(self.sim)
             self.sim.pause()
         except Exception:
             self.sim.close()
@@ -45,6 +73,7 @@ class Session:
     def _event(self, event: RunEvent) -> None:
         self.recorder.write(event)
         self.view.consume(event.as_dict())
+        self.timeline.consume(event.as_dict())
 
     def _check_active(self) -> None:
         if self.stopped:
@@ -109,6 +138,20 @@ class Session:
         self._check_active()
         self.sim.resume()
 
+    def inject_fault(self, spec: FaultSpec) -> int:
+        if self.sim.profile_id != "democar-network":
+            raise ValueError("fault library requires the network profile")
+        spec = FaultSpec.from_dict(spec.as_dict())
+        self._command()
+        return self.sim.inject_fault(spec)
+
+    def clear_fault(self, identifier: str) -> int:
+        if self.sim.profile_id != "democar-network":
+            raise ValueError("fault library requires the network profile")
+        fault_id(identifier)
+        self._command()
+        return self.sim.clear_fault(identifier)
+
     def pause(self) -> None:
         self._check_active()
         self.sim.pause()
@@ -117,9 +160,9 @@ class Session:
         if self.stopped or self.sim.state()["paused"]:
             return
         now = int(self.sim.state()["sim_time_ns"] or 0)
-        self.sim.advance_to(min(now + TICK_NS, MAX_DURATION_NS))
+        self.sim.advance_to(min(now + TICK_NS, self.duration_ns))
         self.view.sample(int(self.sim.state()["sim_time_ns"] or 0))
-        if now + TICK_NS >= MAX_DURATION_NS:
+        if now + TICK_NS >= self.duration_ns:
             self.stop()
 
     def stop(self) -> None:
@@ -156,6 +199,8 @@ class Session:
             "stopped": self.stopped,
             "error": self.error,
             "recording": "failed" if self.error else "saved" if self.stopped else "recording",
+            "scenario": self.scenario_info,
+            **self.timeline.snapshot(),
         }
 
     def close(self) -> None:
@@ -175,6 +220,7 @@ def saved_view(path: Path, until_ns: int | None = None) -> dict[str, Any]:
     database = Database(strict=True)
     database.add_dbc_string((path / "profile.dbc").read_text())
     view = make_view(profile_from_version(meta["profile_version"]), database)
+    timeline = FaultTimeline()
     # Only retain the final display window, even for a long CLI recording.
     first_sample = max(0, target - (SIGNAL_LIMIT - 1) * TICK_NS)
     next_sample = ((first_sample + TICK_NS - 1) // TICK_NS) * TICK_NS
@@ -186,10 +232,12 @@ def saved_view(path: Path, until_ns: int | None = None) -> dict[str, Any]:
             view.sample(next_sample)
             next_sample += TICK_NS
         view.consume(event)
+        timeline.consume(event)
     while next_sample <= target:
         view.sample(next_sample)
         next_sample += TICK_NS
     view.sample(target)
+    view.state["active_fault_count"] = len(timeline.active)
     return {
         "id": path.name,
         "mode": "playback",
@@ -201,4 +249,6 @@ def saved_view(path: Path, until_ns: int | None = None) -> dict[str, Any]:
         "stopped": True,
         "error": None,
         "recording": "saved",
+        "scenario": meta.get("scenario"),
+        **timeline.snapshot(),
     }

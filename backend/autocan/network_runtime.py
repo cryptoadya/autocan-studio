@@ -7,7 +7,8 @@ from random import Random
 
 from autocan.bus import BusAdapter, RoutedBusAdapter, VirtualCanAdapter
 from autocan.clock import Phase, SimulationClock
-from autocan.events import Scalar
+from autocan.events import CanFrame, Scalar
+from autocan.faults import FaultLibrary
 from autocan.network_ecu import (
     AbsNode,
     BodyNode,
@@ -94,6 +95,7 @@ class NetworkRuntime:
         seed: int,
         delay_ns: int,
         drop_probability: float,
+        faults: FaultLibrary,
         bus_factory: Callable[[], BusAdapter] | None = None,
     ) -> None:
         bus = (
@@ -109,6 +111,8 @@ class NetworkRuntime:
         self._seed = seed
         self._delay_ns = delay_ns
         self._drop_probability = drop_probability
+        self._library = faults
+        self._pending = dict.fromkeys(RECEIVERS, 0)
         self.request = DriverRequest()
         self._frames = self._deliveries = 0
         self._published = dict.fromkeys(ECU_IDS, 0)
@@ -146,20 +150,25 @@ class NetworkRuntime:
 
     def _publish(self, plan: MessagePlan) -> None:
         self.clock.schedule(
-            self.clock.now_ns + plan.period_ns, Phase.PUBLICATION, lambda: self._publish(plan)
+            self.clock.now_ns + self._library.period(plan.source_ecu, plan.can_id, plan.period_ns),
+            Phase.PUBLICATION,
+            lambda: self._publish(plan),
         )
-        if not self._publishing[plan.source_ecu]:
+        if not self._publishing[plan.source_ecu] or self._library.offline(
+            plan.source_ecu, plan.can_id
+        ):
             return
         frame = self.nodes[plan.source_ecu].publish(
             plan.name, frame_id=self._frames + 1, created_at_ns=self.clock.now_ns
         )
-        dropped = tuple(
-            name
-            for name in plan.receivers
-            if self._drop_probability > 0 and self._rng.random() < self._drop_probability
-        )
-        recipients = tuple(name for name in plan.receivers if name not in dropped)
-        self.bus.publish_to(frame, recipients)
+        frame = self._library.transform(frame)
+        routes = []
+        for name in plan.receivers:
+            base_drop = self._drop_probability > 0 and self._rng.random() < self._drop_probability
+            fault_drop, delay = self._library.delivery(plan.source_ecu, plan.can_id)
+            routes.append((name, base_drop or fault_drop, self._delay_ns + delay))
+        if any(not dropped and self._pending[name] >= 256 for name, dropped, _ in routes):
+            raise RuntimeError("scheduled network delivery queue is full")
         self._frames += 1
         self._published[plan.source_ecu] += 1
         self._emit(
@@ -173,23 +182,27 @@ class NetworkRuntime:
             payload_hex=frame.payload.hex(),
             created_at_ns=frame.created_at_ns,
         )
-        for receiver in plan.receivers:
-            if receiver in dropped:
+        for receiver, dropped, delay in routes:
+            if dropped:
                 self._emit(
                     "FrameDropped", frame_id=frame.frame_id, receiver_id=receiver, seed=self._seed
                 )
             else:
+                self._pending[receiver] += 1
                 self.clock.schedule(
-                    self.clock.now_ns + self._delay_ns,
+                    self.clock.now_ns + delay,
                     Phase.DELIVERY,
-                    partial(self._deliver, receiver),
+                    partial(self._deliver, receiver, frame),
                 )
 
-    def _deliver(self, receiver: str) -> None:
+    def _deliver(self, receiver: str, frame: CanFrame) -> None:
+        # Enqueue the exact frame only when due: jitter may reorder creation times.
+        self.bus.publish_to(frame, (receiver,))
         delivery = self.bus.receive(receiver, received_at_ns=self.clock.now_ns)
         if delivery is None:
             raise RuntimeError("scheduled network delivery is missing")
         self._deliveries += 1
+        self._pending[receiver] -= 1
         self._emit(
             "FrameReceived",
             frame_id=delivery.event.frame_id,

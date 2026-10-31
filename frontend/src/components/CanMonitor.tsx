@@ -11,9 +11,9 @@ export function CanMonitor({frames, skipped, network = false}: {frames: Frame[];
         value={filter} onChange={e => setFilter(e.target.value)} />
         <button className="quiet" onClick={() => setFrozen(frozen ? null : [...frames])}>{frozen ? 'Unfreeze' : 'Freeze'}</button></div>
     </div>
-    <div className="table-scroll"><table><thead><tr><th>SIM TIME / s</th><th>CAN ID</th><th>DLC</th><th>PAYLOAD / hex</th><th>{network ? 'DECODED SIGNALS' : 'DECODED RPM'}</th><th>FRAME</th></tr></thead>
+    <div className="table-scroll"><table><thead><tr><th>SIM TIME / s</th>{network && <th title="Synthetic delivery time minus frame creation time">DELAY / ms</th>}<th>CAN ID</th><th>DLC</th><th>PAYLOAD / hex</th><th>{network ? 'DECODED SIGNALS' : 'DECODED RPM'}</th><th>FRAME</th></tr></thead>
       <tbody>{shown.map(frame => <tr key={frame.frame_id}>
-        <td>{(frame.sim_time_ns / 1e9).toFixed(3)}</td><td className="can-id">0x{frame.can_id.toString(16).toUpperCase()}</td>
+        <td>{(frame.sim_time_ns / 1e9).toFixed(3)}</td>{network && <td>{frame.created_at_ns === undefined ? '—' : ((frame.sim_time_ns - frame.created_at_ns) / 1e6).toFixed(3)}</td>}<td className="can-id">0x{frame.can_id.toString(16).toUpperCase()}</td>
         <td>{frame.dlc}</td><td>{frame.payload_hex.match(/../g)?.join(' ').toUpperCase()}</td>
         <td className="decoded-signals">{frame.decoded ? <><b>{frame.message_name}</b> {frame.decoded}</> : frame.rpm?.toFixed(1) ?? '—'}</td><td className="muted">#{frame.frame_id}</td>
       </tr>)}</tbody></table>

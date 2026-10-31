@@ -3,14 +3,18 @@
 A local-first, synthetic CAN laboratory with a deterministic simulator and an
 independent anomaly-detection pipeline planned for later milestones.
 
-**Current development: M5 ECU network and vehicle controls; released baseline: v0.1.0 (M0–M4).**
+**Current development: M6 fault scenarios with API/UI and timeline; released baseline: v0.1.0 (M0–M4).**
 Engine, ABS/DSC, Transmission, Body and KOMBI exchange eight synthetic messages
 through an in-process python-can adapter. KOMBI decodes received RPM, speed,
 temperature, gear and ignition with independent freshness timers. Physical
 ignition/Start/Stop, throttle/brake/gear and publication controls are recorded;
 runs can be saved, played back and recomputed. The normal urban drive exercises
 all five ECU. This is a synthetic laboratory, not an OEM emulator or a physical
-vehicle diagnostic tool. The fault library, datasets and ML remain later milestones.
+vehicle diagnostic tool. The headless network fault library now provides eight
+fault types, three reproducible demonstrations and recorded manual inject/clear
+commands. The dashboard runs those scenarios, edits fault parameters and restores
+active faults and a bounded timeline in live and playback views. Datasets and ML
+remain later milestones. See [fault scenarios and contracts](docs/FAULTS.md).
 
 ## Run the dashboard
 
@@ -95,6 +99,17 @@ Release tags and GitHub publication are separate from local acceptance.
 Click the animation for the full-resolution recording of the browser acceptance:
 throttle, Offline, save, playback deadlines and a matching rerun. This is a
 synthetic run; the recording is not a physical vehicle test.
+
+## Fault scenarios
+
+Choose **ABS missing frames**, **RPM spike** or **Timing jitter** under **Fault
+scenarios**, then **Run scenario**. Each short run saves automatically; load its
+playback to inspect the fault interval or click a timeline timestamp. **Fault lab**
+also provides manual parameters and inject/clear for all eight library types.
+Pause queues commands until resume; playback disables mutation. See the
+[scenario guide and local acceptance](docs/FAULTS.md) for intervals and API usage.
+
+![M6 fault editor and saved timeline during an RPM spike](docs/images/m6-fault-scenarios.png)
 
 ## Development setup
 

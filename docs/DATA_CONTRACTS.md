@@ -386,7 +386,7 @@ explicitly physical model telemetry, never a KOMBI/CAN speed measurement. Model
 speed is integrated in m/s rounded to 12 decimal places; canonical km/h samples
 are rounded to 9 places. Playback consumes only saved samples and command results.
 Older recordings without motion commands retain their original stationary P
-state. New recordings use core version `m5-network-1` and store the motion model
+state. New recordings use core version `m6-faults-1` and store the motion model
 version/settings in their manifest; old-core rerun still requires the old core.
 Saved-run identifiers are UUID hex strings, not filesystem paths. Failed or
 incomplete recordings are omitted from the saved-run selector; they still consume
@@ -419,3 +419,24 @@ API sessions are limited to 120 virtual seconds, 256 commands and the existing
 HTTP POST/PATCH bodies are capped at 4096 bytes. The source launcher bounds
 concurrent connections to 32 and incoming WS messages/queues to 4096 bytes / 8.
 There is no arbitrary upload, export format, scenario editor or remote API in M3.
+
+## M6 fault commands and timeline
+
+The network profile accepts validated `inject_fault` and `clear_fault` core,
+CLI and API/UI commands. They use the same input phase, canonical time/order and separate
+commands/ground-truth artifacts as existing controls. Publication, encoding,
+delivery, overlap/clear, RNG and compatibility rules are specified in
+[fault contracts](FAULTS.md). M5 publication requests remain compatible.
+
+Creation optionally selects a whitelisted built-in `scenario_id`; the session
+reserves its commands, uses its transport and completes at its exact duration.
+The manifest may include validated scenario provenance; actual applied commands
+and end time remain authoritative for rerun and early stop.
+
+Live/WS/playback projections add a labelled demo `timeline` (latest 100 events),
+`timeline_truncated`, `active_faults` (up to 32 independent active library episodes)
+and optional scenario metadata. Each WS update replaces these small projections.
+Timeline samples are bounded by the playback position and never enter CAN payloads.
+Observer `display_seq` determines WS deltas even when delay reorders frame IDs.
+Displayed network frames include `created_at_ns` for the synthetic delay column;
+it remains internal provenance, excluded from the allowed future detector inputs.
