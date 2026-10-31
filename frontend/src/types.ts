@@ -34,6 +34,7 @@ export interface SimState {
   last_received_ns: number | null
   frames_published: number
   deliveries: number
+  active_fault_count?: number
 }
 export interface Frame {
   frame_id: number
@@ -46,6 +47,7 @@ export interface Frame {
   message_name?: string
   decoded?: string
   display_seq?: number
+  created_at_ns?: number
 }
 export interface Signal { sim_time_ns: number; rpm: number | null; status: Freshness }
 export interface Snapshot {
@@ -59,6 +61,10 @@ export interface Snapshot {
   recording: 'recording' | 'saved' | 'failed'
   error: string | null
   duration_ns?: number
+  scenario?: DemoScenario | null
+  active_faults?: ActiveFault[]
+  timeline?: TimelineEvent[]
+  timeline_truncated?: number
 }
 export interface WireMessage extends Snapshot {
   type: 'snapshot' | 'frames_batch'
@@ -67,3 +73,26 @@ export interface WireMessage extends Snapshot {
   skipped_frames: number
 }
 export interface SavedRun { id: string; duration_ns: number }
+export interface DemoScenario {
+  id: string; name: string; description: string; duration_ns: number
+  profile_id: string; seed: number; source_sha256: string
+}
+export interface FaultSpec {
+  fault_id: string; type: string; target_ecu: string; target_message_id: number | null
+  signal?: string | null; parameters: Record<string, number>; seed: number
+}
+export interface ActiveFault {fault: FaultSpec; start_at_ns: number}
+export interface TimelineEvent {
+  event_seq: number; sim_time_ns: number; event_kind: string; title: string; details: string
+  fault_id?: string; start_at_ns?: number
+}
+export interface FaultParameter {
+  name: string; label: string; minimum: number; maximum: number; step: number
+  default: number | null; scale: number; optional: boolean
+}
+export interface FaultType {
+  id: string; name: string; requires_signal: boolean; wheel_only: boolean; parameters: FaultParameter[]
+}
+export interface FaultSignal {name: string; minimum: number; maximum: number; step: number; unit: string}
+export interface FaultMessage {can_id: number; name: string; ecu_id: string; signals: FaultSignal[]}
+export interface FaultCatalog {types: FaultType[]; messages: FaultMessage[]}

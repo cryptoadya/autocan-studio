@@ -8,7 +8,11 @@ export async function request<T>(path: string, method = 'GET', body?: unknown, s
     body: body === undefined ? undefined : JSON.stringify(body), signal,
   })
   const data = await response.json()
-  if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `Request failed (${response.status})`)
+  if (!response.ok) {
+    const validation: {type?: string; msg?: string}[] = Array.isArray(data.detail) ? data.detail : []
+    const owning = validation.find(error => error.type === 'value_error') ?? validation[0]
+    throw new Error(typeof data.detail === 'string' ? data.detail : owning?.msg ?? `Request failed (${response.status})`)
+  }
   return data as T
 }
 

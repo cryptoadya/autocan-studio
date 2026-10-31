@@ -141,7 +141,7 @@ class TraceRecorder:
             self._abort(str(exc))
             raise
 
-    def begin(self, sim: Simulation) -> None:
+    def begin(self, sim: Simulation, *, scenario: dict[str, object] | None = None) -> None:
         if (
             self._started
             or self._finished
@@ -175,6 +175,8 @@ class TraceRecorder:
             **_git_provenance(),
         )
         self._started = True
+        if scenario is not None:
+            self._meta["scenario"] = dict(scenario)
         self._save_manifest()
 
     def write(self, event: RunEvent) -> None:
@@ -324,6 +326,7 @@ def _read_meta(root: Path) -> dict[str, object]:
             "semantic_sha256",
             "artifacts",
         },
+        {"scenario"},
     )
     if (
         integer(meta["format_version"], "format version") != 1
@@ -331,6 +334,22 @@ def _read_meta(root: Path) -> dict[str, object]:
     ):
         raise TraceError("unsupported trace schema")
     profile_from_version(meta["profile_version"])
+    if "scenario" in meta:
+        scenario = object_value(meta["scenario"], "scenario provenance")
+        fields(
+            scenario,
+            {"id", "name", "description", "duration_ns", "profile_id", "seed", "source_sha256"},
+        )
+        for key in ("id", "name", "description"):
+            _text(scenario[key], f"scenario {key}")
+        integer(scenario["duration_ns"], "scenario duration")
+        integer(scenario["seed"], "scenario seed")
+        if (
+            profile_version(_text(scenario["profile_id"], "scenario profile"))
+            != meta["profile_version"]
+        ):
+            raise TraceError("scenario profile mismatch")
+        _hash(scenario["source_sha256"])
     _text(meta["run_id"], "run ID")
     _text(meta["core_version"], "core version")
     for name in ("core_sha256", "profile_sha256", "config_sha256", "semantic_sha256"):

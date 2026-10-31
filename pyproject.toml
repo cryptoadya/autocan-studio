@@ -25,6 +25,11 @@ required-version = "==0.13.6"
 [tool.hatch.build.targets.wheel]
 packages = ["backend/autocan"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"scenarios/abs_missing_frames.json" = "autocan/demo_scenarios/abs_missing_frames.json"
+"scenarios/rpm_spike.json" = "autocan/demo_scenarios/rpm_spike.json"
+"scenarios/timing_jitter.json" = "autocan/demo_scenarios/timing_jitter.json"
+
 [tool.hatch.build.targets.sdist]
 include = [
   "/backend",

@@ -35,6 +35,8 @@ test('replacing a run leaves exactly one vehicle dashboard and one motion panel'
   vi.stubGlobal('fetch', async (path: string) => {
     if (path === '/api/simulations/current') return Response.json(live)
     if (path === '/api/runs') return Response.json([])
+    if (path === '/api/scenarios') return Response.json([])
+    if (path === '/api/faults') return Response.json({types: [], messages: []})
     throw new Error(`Unexpected request: ${path}`)
   })
   render(<App />)
@@ -43,6 +45,7 @@ test('replacing a run leaves exactly one vehicle dashboard and one motion panel'
   expect(screen.getAllByRole('region', {name: 'Vehicle dashboard'})).toHaveLength(1)
   expect(screen.getAllByRole('region', {name: 'Motion · physical model'})).toHaveLength(1)
   expect(screen.getAllByRole('slider', {name: 'Throttle'})).toHaveLength(1)
+  expect(screen.getAllByRole('region', {name: 'Scenarios and faults'})).toHaveLength(1)
 })
 
 test.each(['response', 'error'])('returning to live ignores a late playback %s', async outcome => {
@@ -56,6 +59,8 @@ test.each(['response', 'error'])('returning to live ignores a late playback %s',
   vi.stubGlobal('fetch', async (path: string) => {
     if (path === '/api/simulations/current') return json(live)
     if (path === '/api/runs') return json([{id: saved.id, duration_ns: saved.duration_ns}])
+    if (path === '/api/scenarios') return json([])
+    if (path === '/api/faults') return json({types: [], messages: []})
     if (path === '/api/runs/saved-run/playback') {
       playbackCalls++
       return playbackCalls === 1 ? json(saved) : delayed

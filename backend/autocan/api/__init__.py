@@ -16,7 +16,9 @@ from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from autocan.api.runtime import Session, saved_view
+from autocan.catalog import DEMOS, fault_catalog, load_demo
 from autocan.dbc import PROFILES
+from autocan.faults import FaultSpec
 from autocan.traces import rerun, verify_trace
 
 
@@ -65,6 +67,7 @@ class CreateSimulation(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     profile_id: str = "democar"
     seed: int = Field(default=42, ge=0, le=2**32 - 1)
+    scenario_id: str | None = None
 
 
 class Inputs(BaseModel):
@@ -88,6 +91,30 @@ class Fault(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     offline: bool
     ecu_id: Literal["engine", "abs", "transmission", "body", "KOMBI"] = "engine"
+
+
+class FaultDefinition(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    fault_id: str
+    type: str
+    target_ecu: str
+    target_message_id: int | None
+    parameters: dict[str, int | float]
+    signal: str | None = None
+    seed: int = Field(default=0, ge=0, le=2**32 - 1)
+
+    def specification(self) -> FaultSpec:
+        return FaultSpec.from_dict(self.model_dump())
+
+    @model_validator(mode="after")
+    def validate_fault(self) -> Self:
+        self.specification()
+        return self
+
+
+class FaultInjection(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    fault: FaultDefinition
 
 
 def create_app(*, data_root: Path = Path("data/runs"), static_root: Path | None = None) -> FastAPI:
@@ -154,14 +181,40 @@ def create_app(*, data_root: Path = Path("data/runs"), static_root: Path | None 
     @app.post("/api/simulations")
     async def create(spec: CreateSimulation) -> dict[str, Any]:
         nonlocal active
-        if spec.profile_id not in PROFILES:
+        scenario = None
+        scenario_info = None
+        profile_id = spec.profile_id
+        if spec.scenario_id is not None:
+            try:
+                scenario_info, scenario = load_demo(spec.scenario_id)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            if "profile_id" in spec.model_fields_set and profile_id != scenario.profile_id:
+                raise HTTPException(422, "scenario requires its declared profile")
+            profile_id = scenario.profile_id
+            scenario_info = {**scenario_info, "seed": spec.seed}
+        if profile_id not in PROFILES:
             raise HTTPException(422, "unsupported DemoCar profile")
         if active is not None and not active.stopped:
             raise HTTPException(409, "stop and save the active run first")
         if active is not None:
             active.close()
-        active = Session(data_root, seed=spec.seed, profile_id=spec.profile_id)
+        active = Session(
+            data_root,
+            seed=spec.seed,
+            profile_id=profile_id,
+            scenario=scenario,
+            scenario_info=scenario_info,
+        )
         return active.snapshot()
+
+    @app.get("/api/scenarios")
+    async def scenarios() -> list[dict[str, object]]:
+        return [load_demo(identifier)[0] for identifier in DEMOS]
+
+    @app.get("/api/faults")
+    async def available_faults() -> dict[str, object]:
+        return fault_catalog()
 
     @app.get("/api/simulations/current")
     async def get_current() -> dict[str, Any] | None:
@@ -184,8 +237,17 @@ def create_app(*, data_root: Path = Path("data/runs"), static_root: Path | None 
         }
 
     @app.post("/api/simulations/{identifier}/faults")
-    async def fault(identifier: str, spec: Fault) -> dict[str, int]:
-        return {"applied_at_ns": current(identifier).offline(spec.offline, spec.ecu_id)}
+    async def fault(identifier: str, spec: Fault | FaultInjection) -> dict[str, int]:
+        session = current(identifier)
+        return {
+            "applied_at_ns": session.inject_fault(spec.fault.specification())
+            if isinstance(spec, FaultInjection)
+            else session.offline(spec.offline, spec.ecu_id)
+        }
+
+    @app.post("/api/simulations/{identifier}/faults/{fault_id}/clear")
+    async def clear_fault(identifier: str, fault_id: str) -> dict[str, int]:
+        return {"applied_at_ns": current(identifier).clear_fault(fault_id)}
 
     @app.post("/api/simulations/{identifier}/{action}")
     async def control(identifier: str, action: str) -> dict[str, Any]:
@@ -197,14 +259,21 @@ def create_app(*, data_root: Path = Path("data/runs"), static_root: Path | None 
                 seed = int(session.sim.state()["seed"] or 0)
                 profile_id = session.sim.profile_id
                 session.close()
-                active = Session(data_root, seed=seed, profile_id=profile_id)
+                active = Session(
+                    data_root,
+                    seed=seed,
+                    profile_id=profile_id,
+                    scenario=session.scenario,
+                    scenario_info=session.scenario_info,
+                )
                 return active.snapshot()
             if action not in {"start", "pause", "stop"}:
                 raise HTTPException(404, "unknown simulation action")
             getattr(session, action)()
             return session.snapshot()
-        except (OSError, RuntimeError) as exc:
-            session.fail(exc)
+        except (ValueError, OSError, RuntimeError) as exc:
+            if not session.stopped:
+                session.fail(exc)
             raise HTTPException(409, str(exc)) from exc
 
     @app.get("/api/runs")
@@ -267,7 +336,9 @@ def create_app(*, data_root: Path = Path("data/runs"), static_root: Path | None 
                             0,
                             frames[0].get("display_seq", frames[0]["frame_id"]) - last_display - 1,
                         )
-                    message["frames"] = [f for f in frames if f["frame_id"] > last_frame]
+                    message["frames"] = [
+                        f for f in frames if f.get("display_seq", f["frame_id"]) > last_display
+                    ]
                     message["signals"] = [
                         s for s in snapshot["signals"] if s["sim_time_ns"] > last_time
                     ]

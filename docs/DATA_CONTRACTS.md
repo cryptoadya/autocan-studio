@@ -420,11 +420,23 @@ HTTP POST/PATCH bodies are capped at 4096 bytes. The source launcher bounds
 concurrent connections to 32 and incoming WS messages/queues to 4096 bytes / 8.
 There is no arbitrary upload, export format, scenario editor or remote API in M3.
 
-## M6 headless fault commands
+## M6 fault commands and timeline
 
-The network profile accepts validated `inject_fault` and `clear_fault` core/CLI
-commands. They use the same input phase, canonical time/order and separate
+The network profile accepts validated `inject_fault` and `clear_fault` core,
+CLI and API/UI commands. They use the same input phase, canonical time/order and separate
 commands/ground-truth artifacts as existing controls. Publication, encoding,
 delivery, overlap/clear, RNG and compatibility rules are specified in
-[fault contracts](FAULTS.md). The current HTTP API/UI does not yet expose these
-commands; its M5 publication controls remain available.
+[fault contracts](FAULTS.md). M5 publication requests remain compatible.
+
+Creation optionally selects a whitelisted built-in `scenario_id`; the session
+reserves its commands, uses its transport and completes at its exact duration.
+The manifest may include validated scenario provenance; actual applied commands
+and end time remain authoritative for rerun and early stop.
+
+Live/WS/playback projections add a labelled demo `timeline` (latest 100 events),
+`timeline_truncated`, `active_faults` (up to 32 independent active library episodes)
+and optional scenario metadata. Each WS update replaces these small projections.
+Timeline samples are bounded by the playback position and never enter CAN payloads.
+Observer `display_seq` determines WS deltas even when delay reorders frame IDs.
+Displayed network frames include `created_at_ns` for the synthetic delay column;
+it remains internal provenance, excluded from the allowed future detector inputs.

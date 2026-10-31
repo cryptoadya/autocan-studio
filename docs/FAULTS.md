@@ -1,10 +1,10 @@
-# M6 fault library — first pass
+# M6 fault library and scenarios
 
-This pass provides headless fault injection for `democar-network`, strict JSON
-scenarios, interactive CLI parameters, applied-command recording and deterministic
-rerun. The dashboard still has the M5 publication controls; scenario selection,
-fault parameters and a fault timeline in the API/UI are the next M6 pass. M6 is
-not yet complete. No dataset, ML detector or raw-payload corruption is included.
+M6 provides fault injection for `democar-network`, strict JSON scenarios, CLI
+and API/UI parameters, a bounded timeline, applied-command recording and
+deterministic rerun. The three demonstrations run through both CLI and dashboard.
+Existing M5 publication controls remain independent. No dataset, ML detector,
+arbitrary scenario upload or raw-payload corruption is included.
 
 ## Run three synthetic demonstrations
 
@@ -31,6 +31,76 @@ rerun uses the manifest and applied commands without the original scenario file.
   independent uniform integer delivery delay of 0–60 ms during `[100, 300)` ms.
   Frame creation times and payloads remain intact. Clearing preserves the next
   publication already scheduled at 340 ms and deliveries already in flight.
+
+## Dashboard and API
+
+Launch `uv run --locked autocan studio` and open the local dashboard. In **Fault
+scenarios**, choose a demonstration and seed, then **Run scenario**. A scenario
+creates a new recorded network session, starts it and saves automatically at its
+exact duration. Stop and save an existing live run before selecting another.
+These short demonstrations are intended for close inspection in playback:
+
+1. Select the saved recording and choose **Load playback**.
+2. Seek to 0.40 s for ABS TIMEOUT, 0.15 s for the RPM spike, or 0.15 s for jitter.
+3. The active-fault cards and timeline describe only events applied by that
+   position. In the jitter run, filter CAN ID `0x200`: **DELAY / ms** shows the
+   synthetic delivery time minus frame creation time. At 0.15 s the most recent
+   observer EngineStatus delay is 24.942 ms for the default seeds.
+4. Click a timeline timestamp to seek directly to that event. **Deterministic
+   rerun** recomputes and compares the saved stream and final state.
+
+For manual injection, **Run demo**, optionally pause, then choose the fault type,
+target message (or all messages of an ECU for offline), signal, parameters, ID and
+fault seed in **Fault lab**. Value bounds and resolution come from the DBC.
+Delays and periods are entered in milliseconds and sent as integer nanoseconds.
+A blank held value captures the first publication. Give simultaneous faults
+distinct IDs; the form starts with `manual-1`. **Inject fault** and each active
+card's **Clear** action queue canonical commands. While paused, the active list
+changes only after resuming. Duplicate/unknown IDs appear as rejected commands
+in the timeline; invalid parameters produce an explicit validation error.
+
+Playback disables scenario creation, injection and clear. Reset saves the old
+run and prepares a new recording, preserving the selected scenario and run seed.
+Starting an ordinary demo after a completed scenario creates an ordinary network
+run. Stopping a scenario early saves only its applied commands; rerun uses that
+actual end time rather than running the unused remainder of the preset.
+
+| Endpoint | Behavior |
+| --- | --- |
+| `GET /api/scenarios` | Three built-in IDs, descriptions, profile, duration, default seed and source SHA-256. |
+| `GET /api/faults` | Eight fault types and parameter metadata; DBC-derived message publishers, analog signals, ranges, resolution and units. |
+| `POST /api/simulations` with `scenario_id`, optional `seed` | Create the selected scenario paused; infer its network profile. An explicitly conflicting profile is rejected. Then POST its `/start` action. |
+| `POST /api/simulations/{id}/faults` with `{"fault": {...}}` | Validate the library specification and reserve one command; return `applied_at_ns`. |
+| `POST /api/simulations/{id}/faults/{fault_id}/clear` | Reserve a clear command and return its canonical time. |
+| Existing `POST .../faults` with `{"offline": true, "ecu_id": "abs"}` | Retain the M5 manual publication gate. |
+
+Requests retain strict types, unknown-field rejection, the 4096-byte body limit,
+same-origin/loopback access and the shared 256-command quota. Scenario commands
+reserve their share at creation. Unsupported profiles and invalid definitions
+cannot consume a manual-command slot. Fault failures during simulation stop the
+session with a failed recording; they are not silently converted into valid data.
+
+Snapshots, WS batches and playback add `scenario`, `active_faults`, `timeline`
+and `timeline_truncated`. The latest 100 relevant events include applied driver
+commands, activation/clear, rejected fault commands and KOMBI freshness changes.
+Older events are explicitly counted as omitted; the canonical recording remains
+complete. The up-to-32 active library faults are retained independently of this
+window. M5 offline markers appear in the timeline, while their publication gates
+remain controlled by the existing buttons. Ground truth is labelled separately
+from received CAN measurements and is not an input to any detector.
+
+Every WS message replaces these bounded projections; reconnect starts with a
+complete snapshot. Network frames are streamed by observer `display_seq`, not
+publication `frame_id`, so a delayed lower-ID frame remains visible. Playback
+rebuilds projections from saved canonical events, including CLI-created runs,
+and never reads future events or reconstructs fault intervals from current UI
+form values.
+
+The optional `scenario` manifest metadata records ID, name/description, profile,
+effective seed, declared duration and original JSON checksum. It does not replace
+the applied log or the actual recorded end time. Historical manifests without it
+remain supported. The wheel includes the exact three scenario files from
+`scenarios/`; an editable checkout uses those originals without a second copy.
 
 ## Schema and parameters
 
@@ -145,16 +215,29 @@ delivery timing for these scenarios. They are compact trace projections rather
 than full run manifests; integration tests additionally record, verify and rerun
 each demonstration through the actual CLI.
 
-## Local verification — 2026-10-31
+## Local M6 verification — 2026-10-31
 
 - `uv run --locked ruff check .`, `uv run --locked ruff format --check .`,
-  `uv run --locked mypy`, `uv run --locked pytest -q`: passed, 270 Python tests.
+  `uv run --locked mypy`, `uv run --locked pytest -q`: passed, 278 Python tests.
 - `uv build --no-sources`: source distribution and wheel built successfully.
 - `npm --prefix frontend run typecheck`, `npm --prefix frontend test`,
-  `npm --prefix frontend run build`: passed, 16 frontend tests.
-- `npm --prefix frontend run test:e2e`: all four existing Chromium acceptance
-  tests passed against the production build and actual API/core. The missing
-  pinned browser was installed in a temporary directory; execution used the
-  approved environment outside the restrictive macOS sandbox with Chromium's
-  own sandbox enabled. These are M5/vertical-slice regression checks, not M6 UI
-  acceptance. Remote CI and M6 API/UI acceptance are not claimed.
+  `npm --prefix frontend run build`: passed, 23 frontend tests.
+- `npm --prefix frontend run test:e2e`: eight Chromium tests passed against the
+  production build and actual API/core. Three cover scenario effects in playback
+  and matching rerun; one covers paused manual injection, reload, clear, saved
+  commands and reset; four retain the M5/vertical-slice acceptance.
+- Desktop 1280×900 and mobile 390×844 rendering were checked, with page identity,
+  meaningful content, interaction assertions, no application console errors or
+  framework overlay, screenshots and no horizontal document overflow. The Browser
+  plugin was not available; the repository's Playwright workflow was used outside
+  the restrictive macOS sandbox with Chromium's own sandbox enabled.
+- A wheel installed in an isolated Python 3.12 environment under `/private/tmp`
+  loaded all three packaged scenarios without the source checkout.
+
+The browser pass caught duplicate React keys for the new panel and CAN Monitor;
+a regression test now checks that run replacement leaves one fault panel. Runtime
+DBC failures stop recording, while rejected commands on an already saved session
+preserve its saved status. All local M6 acceptance criteria are covered; remote
+CI, publication, other browsers and M7 are not claimed.
+
+![M6 RPM spike active at the 0.15 s playback position](images/m6-fault-scenarios.png)

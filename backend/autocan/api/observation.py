@@ -50,7 +50,15 @@ class ObservationView:
         if kind == "FramePublished":
             frame = {
                 key: event[key]
-                for key in ("frame_id", "event_seq", "sim_time_ns", "can_id", "dlc", "payload_hex")
+                for key in (
+                    "frame_id",
+                    "event_seq",
+                    "sim_time_ns",
+                    "can_id",
+                    "dlc",
+                    "payload_hex",
+                    "created_at_ns",
+                )
             }
             self.pending[int(event["frame_id"])] = frame
             self.state["frames_published"] = event["frame_id"]
@@ -166,7 +174,15 @@ class NetworkObservationView(ObservationView):
         if kind == "FramePublished":
             frame = {
                 key: event[key]
-                for key in ("frame_id", "event_seq", "sim_time_ns", "can_id", "dlc", "payload_hex")
+                for key in (
+                    "frame_id",
+                    "event_seq",
+                    "sim_time_ns",
+                    "can_id",
+                    "dlc",
+                    "payload_hex",
+                    "created_at_ns",
+                )
             }
             frame_id = int(event["frame_id"])
             self.pending[frame_id] = frame

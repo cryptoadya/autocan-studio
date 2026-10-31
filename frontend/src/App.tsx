@@ -7,7 +7,9 @@ import { NetworkPanel } from './components/NetworkPanel'
 import { SignalChart } from './components/SignalChart'
 import { CanMonitor } from './components/CanMonitor'
 import { Recordings } from './components/Recordings'
-import type { SavedRun, Snapshot } from './types'
+import { FaultLab } from './components/FaultLab'
+import { ScenarioControls } from './components/ScenarioControls'
+import type { DemoScenario, FaultCatalog, SavedRun, Snapshot } from './types'
 
 export function App() {
   const live = useStudio(s => s.live)
@@ -15,6 +17,8 @@ export function App() {
   const connected = useStudio(s => s.connected)
   const skipped = useStudio(s => s.skipped)
   const [runs, setRuns] = useState<SavedRun[]>([])
+  const [scenarios, setScenarios] = useState<DemoScenario[]>([])
+  const [faultCatalog, setFaultCatalog] = useState<FaultCatalog | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -30,8 +34,9 @@ export function App() {
   const refreshRuns = async () => setRuns(await request<SavedRun[]>('/api/runs'))
   useEffect(() => {
     let active = true
-    Promise.all([request<Snapshot | null>('/api/simulations/current'), request<SavedRun[]>('/api/runs')])
-      .then(([current, saved]) => {if (active) {if (current) useStudio.getState().adopt(current); setRuns(saved)}})
+    Promise.all([request<Snapshot | null>('/api/simulations/current'), request<SavedRun[]>('/api/runs'),
+      request<DemoScenario[]>('/api/scenarios'), request<FaultCatalog>('/api/faults')])
+      .then(([current, saved, demos, faults]) => {if (active) {if (current) useStudio.getState().adopt(current); setRuns(saved); setScenarios(demos); setFaultCatalog(faults)}})
       .catch(e => {if (active) setError(String(e.message))})
       .finally(() => {if (active) setLoading(false)})
     return () => {active = false}
@@ -114,6 +119,12 @@ export function App() {
       {(error || view?.error) && <div role="alert" className="message error">{error || view?.error}</div>}
       {notice && <div role="status" className="message success">{notice}</div>}
       {isPlayback && <div className="playback-banner">Viewing saved events. Live controls are disabled; the simulation is paused.</div>}
+      <ScenarioControls scenarios={scenarios} view={view} disabled={busy || loading || isPlayback || !!(live && !live.stopped)}
+        onRun={(scenario_id, seed) => perform(async () => {
+          const session = await request<Snapshot>('/api/simulations', 'POST', {scenario_id, seed})
+          useStudio.getState().adopt(session)
+          await request(`/api/simulations/${session.id}/start`, 'POST')
+        })} />
       <Dashboard key={view?.id} state={view?.state} disabled={disabled}
         onThrottle={value => command('inputs', 'PATCH', {throttle: value})}
         onIgnition={ignition => command('inputs', 'PATCH', {ignition})}
@@ -124,6 +135,11 @@ export function App() {
         onGear={gear => command('inputs', 'PATCH', {gear})} />
       {view?.state.profile_id === 'democar-network' && <NetworkPanel state={view.state} disabled={disabled}
         onOffline={(ecu_id, offline) => command('faults', 'POST', {ecu_id, offline})} />}
+      <FaultLab key={`faults-${view?.id}-${view?.mode}`} catalog={faultCatalog} view={view}
+        disabled={disabled || view?.state.profile_id !== 'democar-network'}
+        onInject={fault => command('faults', 'POST', {fault})}
+        onClear={id => command(`faults/${encodeURIComponent(id)}/clear`, 'POST', undefined)}
+        onSeek={time => {if (view) void load(view.id, time)}} />
       <SignalChart signals={view?.signals ?? []} now={view?.sim_time_ns ?? 0} />
       <CanMonitor key={`${view?.id}-${view?.mode}`} frames={view?.frames ?? []} skipped={skipped} network={view?.state.profile_id === 'democar-network'} />
       <Recordings runs={runs} view={view} busy={busy} onLoad={load}
