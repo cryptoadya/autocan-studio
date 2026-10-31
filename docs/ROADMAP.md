@@ -170,3 +170,45 @@ See [v0.1 acceptance](V0_1_ACCEPTANCE.md) for executed checks and limitations.
   recording. Local verification and the screenshot are in [fault scenarios](FAULTS.md).
 - This completes the local M6 acceptance boundary. M7 datasets, ML, remote CI,
   publication and a new release are separate work.
+
+## M7 first pass — Parquet exchange and observer datasets
+
+- Typed streaming frames/deliveries, lossless auxiliary event/command tables,
+  physically separate ground truth, original DBC and verifiable provenance.
+- JSONL -> Parquet -> JSONL retains canonical events and supports existing
+  playback and a separate fresh rerun. Historical JSONL v0.1 playback remains.
+- A selected receiver's observation table uses only wire fields and receipt time;
+  drops, pending deliveries and other subscriptions cannot leak into its input.
+- New-directory-only output, bounded row groups/imports, checksums/semantic hashes
+  and explicit quotas. See [formats and CLI examples](PARQUET.md).
+- M7 remains in progress: multiple driving modes and reproducible multi-run
+  Dataset Factory generation are the next coherent pass. SQLite is deferred until
+  metadata queries require an index. ML starts in M8; no V1 release is implied.
+
+## M7 Dataset Factory — local storage/generation acceptance
+
+- Six nominal driving modes with verified physical motion/stops, balanced mode
+  cycles, varied durations/commands and independent fault planning from one seed.
+- Sequential generation of normal/fault runs with JSONL, normalized Parquet,
+  selected-receiver observations and physically separate fault truth. All eight
+  library fault types are available; original scenarios are saved per run.
+- Root artifact inventory, linked provenance and a reproducible collection hash;
+  `verify-dataset`, existing playback and separate fresh rerun retain their roles.
+- Per-output and collection quotas, bounded run counts/durations/row groups and
+  new-directory-only staged publication. No metadata index is currently needed.
+- See [Dataset Factory](DATASET_FACTORY.md) for commands, formats and limitations.
+  This implements the M7 headless storage/generation boundary. V1 release
+  acceptance/publication and M8 features/splits/baselines remain separate work.
+
+## M7 final acceptance — complete locally
+
+- Verified every M7 criterion, retained historical JSONL playback and completed
+  24 generated-run Parquet imports/playbacks plus separate fresh reruns covering
+  203,527 canonical events. Checksums, source linkage and semantic hashes agree.
+- Corrected collection verification to read/recompute derived tables and compare
+  observer rows/labels and actual applied commands with their recorded sources.
+- Current Python, frontend and eight real Chromium E2E checks passed. A built
+  wheel also runs the headless generator outside the source checkout.
+- [Acceptance report](M7_ACCEPTANCE.md) records evidence, reproduction, the browser
+  screenshot and explicit limits. No M7-local acceptance work remains; M8 and
+  release preparation/publication are separate actions.

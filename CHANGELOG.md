@@ -1,5 +1,42 @@
 # Changelog
 
+## Unreleased — M7 final acceptance and provenance checks
+
+- Recompute nested Parquet/observer schemas and semantic hashes during collection
+  verification, comparing every event, observation and fault label to its source.
+- Link saved driving recipes to the actual applied command log, profile and
+  transport settings; reject rehashed but internally inconsistent collections.
+- Add regression coverage for both verifier defects. Complete local M7 acceptance
+  with full generated-collection round trips/reruns, Python/frontend/browser
+  checks, built-wheel startup and a current acceptance report/screenshot.
+- No ML, version bump or release publication is included.
+
+## Unreleased — M7 driving modes and run collections
+
+- Add seeded idle, stop-and-go, city, cruise, braking and acceleration recipes,
+  with balanced mode cycles and varied pedal strengths, timing and durations.
+- Generate normal/fault run series through the existing simulator, JSONL recorder,
+  normalized Parquet exchange and selected-receiver observation export. Keep
+  fault planning independent from driver recipes and support all eight fault types.
+- Save per-run source scenarios and a collection manifest with linked provenance,
+  full artifact inventory and a semantic hash that excludes new run identities.
+- Add `generate` and `verify-dataset`, collection quotas and staged publication
+  without overwriting. Cover physical mode effects, deterministic series, fresh
+  reruns, Parquet reload, corruption and failed generation cleanup.
+- Feature windows, dataset splits and ML remain M8+. No V1 release is published.
+
+## Unreleased — M7 Parquet exchange and observer datasets (first pass)
+
+- Add streaming typed Parquet frames/deliveries and separate event, command and
+  fault tables, preserving the original manifest, DBC, canonical events and hashes.
+- Restore verified bundles as new JSONL runs for existing playback and fresh
+  deterministic rerun. Keep historical v0.1 playback and strict rerun compatibility.
+- Export one receiver's actual wire observations and receipt times, with separate
+  fault labels and provenance. Exclude simulator internals from observation columns.
+- Bound row groups, import sizes and output quotas; reject corruption and symlink
+  artifacts and exclusively reserve new output directories without overwriting.
+- Driving-mode/run generation remains the next M7 pass. No ML or V1 release.
+
 ## Unreleased — M6 API/UI scenarios, faults and timeline
 
 - Add a built-in scenario catalog, strict REST inject/clear, DBC-derived editor

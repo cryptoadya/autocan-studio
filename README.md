@@ -3,7 +3,7 @@
 A local-first, synthetic CAN laboratory with a deterministic simulator and an
 independent anomaly-detection pipeline planned for later milestones.
 
-**Current development: M6 fault scenarios with API/UI and timeline; released baseline: v0.1.0 (M0–M4).**
+**M7 implemented and locally verified; released baseline: v0.1.0 (M0–M4).**
 Engine, ABS/DSC, Transmission, Body and KOMBI exchange eight synthetic messages
 through an in-process python-can adapter. KOMBI decodes received RPM, speed,
 temperature, gear and ignition with independent freshness timers. Physical
@@ -13,8 +13,14 @@ all five ECU. This is a synthetic laboratory, not an OEM emulator or a physical
 vehicle diagnostic tool. The headless network fault library now provides eight
 fault types, three reproducible demonstrations and recorded manual inject/clear
 commands. The dashboard runs those scenarios, edits fault parameters and restores
-active faults and a bounded timeline in live and playback views. Datasets and ML
-remain later milestones. See [fault scenarios and contracts](docs/FAULTS.md).
+active faults and a bounded timeline in live and playback views. The headless CLI
+exports/imports verified Parquet runs and builds a selected receiver's raw CAN
+dataset with physically separate fault labels. Dataset Factory generates six
+seeded driving modes and bounded collections of normal/fault runs with a verified
+manifest. ML remains later work. See [fault scenarios](docs/FAULTS.md),
+[Parquet exchange](docs/PARQUET.md) and [Dataset Factory](docs/DATASET_FACTORY.md).
+The [M7 acceptance report](docs/M7_ACCEPTANCE.md) records the completed checks,
+full collection round trips/reruns and current browser regression evidence.
 
 ## Run the dashboard
 

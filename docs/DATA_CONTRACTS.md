@@ -440,3 +440,18 @@ Timeline samples are bounded by the playback position and never enter CAN payloa
 Observer `display_seq` determines WS deltas even when delay reorders frame IDs.
 Displayed network frames include `created_at_ns` for the synthetic delay column;
 it remains internal provenance, excluded from the allowed future detector inputs.
+
+## M7 Parquet exchange and observer datasets
+
+The additive headless formats are specified in [Parquet storage](PARQUET.md).
+Normalized frame publications and per-receiver deliveries preserve the JSONL
+canonical sequence; hidden simulator provenance is excluded from the selected
+receiver's observation table. Fault truth is stored separately. Existing JSONL
+version 1, playback and exact-version rerun contracts remain unchanged.
+
+The [Dataset Factory](DATASET_FACTORY.md) composes these formats into a bounded
+collection of seeded driving runs. Its root manifest binds each saved scenario,
+source trace, Parquet bundle and selected-receiver dataset through a physical
+inventory and a logical collection hash. Run IDs and physical container bytes
+are excluded from that logical hash; hidden recipe/physics/fault metadata remain
+outside the observer input columns. No feature/window labels or splits are added.
