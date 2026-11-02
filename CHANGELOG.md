@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — M9 saved window loading and rule CLI (third pass)
+
+- Load existing prepared artifacts with bounded source-bound validation of
+  manifests, schemas, physical/semantic hashes, feature order, splits and labels.
+- Audit coverage, missing masks, frozen preprocessing scopes/train fingerprints
+  and saved transforms without fitting preprocessing or training a model.
+- Add `evaluate-rules` on saved splits/configuration, publishing nine common
+  window metric rows, PR curves, confusion matrices, a report and provenance.
+- Preserve inputs, refuse existing outputs, enforce quotas and stage publication.
+  No threshold selection, OOD changes, new dependencies or Studio UI changes.
+
 ## Unreleased — M9 common window evaluator (second pass)
 
 - Add a shared score/truth contract with strict window identity/order, whole-run

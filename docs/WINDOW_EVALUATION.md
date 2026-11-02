@@ -53,8 +53,9 @@ assert metrics["precision"] == metrics["recall"] == metrics["f1"] == 0.5
 
 The library consumes trusted, aligned in-memory rows. Callers joining saved
 tables must first verify artifact/source/split lineage, schemas, feature order
-and row indices; a key cannot authenticate a dataset. A general saved-artifact
-importer and comparison/report CLI remain separate work. Integration coverage
+and row indices; a key cannot authenticate a dataset. The
+[third M9 pass](SAVED_WINDOW_RULES.md) adds source-bound artifact validation and
+the `evaluate-rules` report CLI. Integration coverage
 uses real freshly prepared Parquet rows, all three saved partitions and warm-up.
 
 ## Metrics
