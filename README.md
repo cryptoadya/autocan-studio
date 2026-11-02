@@ -43,6 +43,9 @@ with independent validation-only thresholds and held-out test scoring.
 The [frozen model OOD evaluation](docs/ML_OOD.md) reuses saved models,
 preprocessing and thresholds on separate unseen-fault and unseen-normal sets,
 reporting window metrics and normal false alarms without refitting or tuning.
+The [saved-score event evaluation](docs/EVENT_EVALUATION.md) adds common temporal
+fault-event detection rate and latency by fault type from those existing ID/OOD
+scores, with no model loading, new inference or test/OOD tuning.
 
 ## Run the dashboard
 

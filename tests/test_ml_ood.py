@@ -14,35 +14,8 @@ from autocan.training_artifacts import LoadedTrainingData, load_training_data
 
 
 @pytest.fixture(scope="module")
-def frozen(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    from autocan.benchmark import run_benchmark
-    from autocan.factory import FactoryConfig, generate_factory
-    from autocan.features import FeatureConfig
-    from autocan.ml_experiment import run_random_forest
-    from autocan.ood import generate_ood
-    from autocan.training_data import prepare_training_data
-
-    root = tmp_path_factory.mktemp("frozen-ml-ood")
-    generate_factory(
-        FactoryConfig(
-            runs=12,
-            seed=12,
-            modes=("acceleration",),
-            fault_runs=9,
-            fault_types=("ecu_offline", "signal_spike", "cross_signal_inconsistency"),
-            min_duration_ns=8_000_000_000,
-            max_duration_ns=8_000_000_000,
-        ),
-        root / "source",
-    )
-    config = FeatureConfig(window_ns=100_000_000)
-    prepare_training_data(root / "source", root / "prepared", config=config)
-    run_random_forest(root / "prepared", root / "experiment", source=root / "source")
-    run_benchmark(root / "source", root / "reference", config=config)
-    generate_ood(
-        root / "source", root / "reference", root / "suite", seed=19, fault_runs=2, normal_runs=2
-    )
-    return root
+def frozen(ml_frozen: Path) -> Path:
+    return ml_frozen
 
 
 def arguments(root: Path, target: Path) -> list[str]:
@@ -66,8 +39,133 @@ def saved_data(frozen: Path) -> LoadedTrainingData:
     return load_training_data(frozen / "prepared", source=frozen / "source")
 
 
+@pytest.fixture(scope="module")
+def saved_ood(ml_ood_scores: Path) -> Path:
+    return ml_ood_scores
+
+
+def event_arguments(root: Path, saved_ood: Path, target: Path) -> list[str]:
+    return [
+        "evaluate-events",
+        str(root / "prepared"),
+        "--source",
+        str(root / "source"),
+        "--experiment",
+        str(root / "experiment"),
+        "--ood-results",
+        str(saved_ood),
+        "--suite",
+        str(root / "suite"),
+        "--reference",
+        str(root / "reference"),
+        "--output",
+        str(target),
+    ]
+
+
+def test_event_cli_reuses_all_saved_scores_without_model_loading_or_inference(
+    frozen: Path,
+    saved_ood: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from autocan.cli import main
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("saved-score event evaluation cannot load/score/fit models or replay features")
+
+    for name in (
+        "pickle.loads",
+        "pickle.load",
+        "autocan.model_artifacts.load_frozen_experiment",
+        "autocan.isolation_forest.FittedForest.score",
+        "autocan.random_forest.FittedRandomForest.score",
+        "autocan.preprocessing.fit_training",
+        "autocan.training_data.fit_training",
+        "autocan.isolation_forest.choose_validation_threshold",
+        "autocan.ml_experiment.choose_validation_threshold",
+        "autocan.features.replay_observations",
+    ):
+        monkeypatch.setattr(name, forbidden)
+    before = {
+        p: sha256(p.read_bytes()).hexdigest()
+        for folder in (frozen, saved_ood)
+        for p in folder.rglob("*")
+        if p.is_file()
+    }
+    first, second = tmp_path / "events", tmp_path / "again"
+    for target in (first, second):
+        assert main(event_arguments(frozen, saved_ood, target)) == 0
+    for p in first.iterdir():
+        assert p.read_bytes() == (second / p.name).read_bytes()
+    assert all(sha256(p.read_bytes()).hexdigest() == h for p, h in before.items())
+    metrics = json.loads((first / "metrics.json").read_text())
+    assert len(metrics["rows"]) == 25
+    saved_normal = {
+        r["model_id"]: r
+        for r in json.loads((saved_ood / "metrics.json").read_text())["normal_false_alarms"]
+    }
+    for row in metrics["rows"]:
+        assert row["fault_episodes"] == (
+            2 if row["split"] == "ood_fault" else 0 if row["split"] == "ood_normal" else 3
+        )
+        if row["split"] == "ood_normal":
+            previous = saved_normal[row["model_id"]]
+            assert row["normal_false_alarm_episodes"] == previous["false_alarm_episodes"]
+            assert row["normal_duration_ns"] == previous["normal_duration_ns"]
+            assert row["false_alarms_per_hour"] == previous["false_alarms_per_hour"]
+            assert row["detection_rate"] is None
+    ledger = [json.loads(line) for line in (first / "runs.jsonl").read_text().splitlines()]
+    assert len(ledger) == 80
+    assert all(m["latency_ns"] >= 0 for row in ledger for m in row["result"]["matches"])
+    manifest = json.loads((first / "manifest.json").read_text())
+    assert manifest["models_trained"] == [] and manifest["thresholds_selected"] == []
+    assert manifest["scores_computed"] == 0
+    assert main(event_arguments(frozen, saved_ood, first)) == 1
+    assert (
+        main(event_arguments(frozen, saved_ood, tmp_path / "quota") + ["--max-bytes", "4096"]) == 1
+    )
+    assert not (tmp_path / "quota").exists()
+    with pytest.raises(SystemExit):
+        main(event_arguments(frozen, saved_ood, tmp_path / "tuned") + ["--grace", "1"])
+
+
+@pytest.mark.parametrize("damage", ["binding", "window"])
+def test_event_cli_rejects_ood_binding_or_rehashed_window_changes_without_publication(
+    frozen: Path,
+    saved_ood: Path,
+    tmp_path: Path,
+    damage: str,
+) -> None:
+    from autocan.cli import main
+    from autocan.validation import canonical_bytes
+
+    root = copytree(saved_ood, tmp_path / "ood")
+    manifest_path = root / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    if damage == "binding":
+        manifest["experiment_manifest_sha256"] = "0" * 64
+    else:
+        import pyarrow as pa
+
+        path = root / "windows.parquet"
+        table = pq.read_table(path)
+        rows = table.to_pylist()
+        rows[0]["run_id"] = "different-run"
+        pq.write_table(pa.Table.from_pylist(rows, schema=table.schema), path, row_group_size=256)
+        manifest["artifacts"]["windows.parquet"].update(
+            bytes=path.stat().st_size,
+            sha256=sha256(path.read_bytes()).hexdigest(),
+            semantic_sha256=sha256(b"".join(canonical_bytes(r) + b"\n" for r in rows)).hexdigest(),
+        )
+    manifest_path.write_text(json.dumps(manifest))
+    assert main(event_arguments(frozen, root, tmp_path / "invalid")) == 1
+    assert not (tmp_path / "invalid").exists()
+
+
 def test_saved_predictions_thresholds_normal_exposure_and_repeatability(
     frozen: Path,
+    saved_ood: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -87,9 +185,8 @@ def test_saved_predictions_thresholds_normal_exposure_and_repeatability(
     ):
         monkeypatch.setattr(name, forbidden)
     before = {p: sha256(p.read_bytes()).hexdigest() for p in frozen.rglob("*") if p.is_file()}
-    first, second = tmp_path / "first", tmp_path / "second"
-    for target in (first, second):
-        assert main(arguments(frozen, target)) == 0
+    first, second = saved_ood, tmp_path / "second"
+    assert main(arguments(frozen, second)) == 0
     assert all(sha256(p.read_bytes()).hexdigest() == h for p, h in before.items())
     for p in first.rglob("*"):
         if p.is_file():

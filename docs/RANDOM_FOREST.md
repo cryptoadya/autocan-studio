@@ -95,6 +95,7 @@ normal families or real CAN. Parameters were not adjusted using these results.
 
 The [sixth pass](ML_OOD.md) evaluates the saved joint experiment on frozen OOD
 domains without refitting or tuning, including per-fault window metrics and
-normal false alarms. Target-aware fault-event analysis, uncertainty/runtime
-studies, live inference and final M9 acceptance remain separate work. No
-completion of the whole milestone is claimed.
+normal false alarms. The [seventh pass](EVENT_EVALUATION.md) evaluates temporal
+fault events using those saved decisions. Uncertainty/runtime studies, live
+inference and final M9 acceptance remain separate work. No completion of the
+whole milestone is claimed.
