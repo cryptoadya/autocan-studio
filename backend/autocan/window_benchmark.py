@@ -27,11 +27,23 @@ DEFAULT_OUTPUT_BYTES = 16 * 1024 * 1024
 MAX_OUTPUT_BYTES = 64 * 1024 * 1024
 
 
-def _report(rows: list[WindowMetrics], prepared_hash: str, *, model_note: str | None = None) -> str:
+def _report(
+    rows: list[WindowMetrics],
+    prepared_hash: str,
+    *,
+    model_note: str | None = None,
+    title: str | None = None,
+) -> str:
     lines = [
-        "# IsolationForest and fixed-rule comparison"
-        if model_note
-        else "# Fixed-rule window evaluation",
+        "# "
+        + (
+            title
+            or (
+                "IsolationForest and fixed-rule comparison"
+                if model_note
+                else "Fixed-rule window evaluation"
+            )
+        ),
         "",
         f"Prepared dataset semantic SHA-256: `{prepared_hash}`.",
         f"Evaluator `{WINDOW_EVALUATOR_VERSION}`; detector `{DETECTOR_ID}`.",

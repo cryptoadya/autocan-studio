@@ -226,5 +226,8 @@ See [v0.1 acceptance](V0_1_ACCEPTANCE.md) for executed checks and limitations.
 - The [first IsolationForest experiment](ISOLATION_FOREST.md) fits eligible
   normal train windows, selects its cutoff only on validation and compares
   the frozen detector against rules on the same saved partitions.
-- RandomForest, OOD model evaluation and broader uncertainty/runtime acceptance
-  remain subsequent M9 work; this is not completion of the whole milestone.
+- [RandomForestClassifier and joint comparison](RANDOM_FOREST.md) add supervised
+  labeled-train fitting with train-only class weights, frozen all-train
+  preprocessing and independent validation-only threshold selection.
+- OOD model evaluation, event/fault analysis and broader uncertainty/runtime
+  acceptance remain subsequent M9 work; this is not the whole milestone's completion.
