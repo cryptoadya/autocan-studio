@@ -21,6 +21,9 @@ manifest. ML remains later work. See [fault scenarios](docs/FAULTS.md),
 [Parquet exchange](docs/PARQUET.md) and [Dataset Factory](docs/DATASET_FACTORY.md).
 The [M7 acceptance report](docs/M7_ACCEPTANCE.md) records the completed checks,
 full collection round trips/reruns and current browser regression evidence.
+The first M8 headless pass adds [causal windows and Tier 0 alerts](docs/BASELINES.md)
+over these observer datasets: heartbeat timeout, RPM derivative and wheel-speed
+disagreement. Full M8 evaluation and ML remain later work.
 
 ## Run the dashboard
 
