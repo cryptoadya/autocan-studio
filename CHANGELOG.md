@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — M8 frozen OOD fault and normal sets (third pass)
+
+- Add `generate-ood` to reserve fault types and normal families absent from all
+  verified ID runs, freezing settings and source/reference hashes before generation.
+- Add `benchmark-ood` with no threshold options, exact reference/protocol binding,
+  nested M7 verification and disjoint identities/scenarios/observer inputs.
+- Reuse causal replay and episode evaluation for six separate domain/rule rows:
+  fault detection/latency and normal false alarm episodes/hour, without OOD tuning.
+- Save reproducible protocols, per-run evidence, metrics, reports and provenance.
+  Keep synthetic family/type limits, sample sizes, quotas and publication behavior
+  explicit. No new physics, parameter-only OOD, ML, threshold fitting or UI changes.
+
 ## Unreleased — M8 whole-run splits and fixed-rule benchmark (second pass)
 
 - Freeze seeded train/validation/test partitions before features; keep exact

@@ -204,6 +204,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     benchmark.add_argument("--rpm-derivative-threshold", type=float, default=20_000)
     benchmark.add_argument("--wheel-residual-threshold", type=float, default=5)
     benchmark.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
+    ood_generate = commands.add_parser(
+        "generate-ood", help="freeze an ID reference and generate two held-out OOD domains"
+    )
+    ood_generate.add_argument("source", type=Path, help="verified ID factory collection")
+    ood_generate.add_argument(
+        "--reference", type=Path, required=True, help="completed ID benchmark"
+    )
+    ood_generate.add_argument("--output", type=Path, required=True)
+    ood_generate.add_argument("--seed", type=_seed, default=43)
+    ood_generate.add_argument("--fault-runs", type=int, default=6)
+    ood_generate.add_argument("--normal-runs", type=int, default=6)
+    ood_generate.add_argument("--max-bytes", type=int, default=256 * 1024 * 1024)
+    ood_benchmark = commands.add_parser(
+        "benchmark-ood", help="evaluate two OOD domains with their frozen ID thresholds"
+    )
+    ood_benchmark.add_argument("source", type=Path, help="original ID factory collection")
+    ood_benchmark.add_argument("suite", type=Path)
+    ood_benchmark.add_argument(
+        "--reference", type=Path, required=True, help="original ID benchmark"
+    )
+    ood_benchmark.add_argument("--output", type=Path, required=True)
+    ood_benchmark.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
     for name, help_text in (
         ("trace-export", "export a verified JSONL run to a new Parquet bundle"),
         ("trace-import", "restore a verified Parquet bundle as a new JSONL run"),
@@ -217,6 +239,33 @@ def main(argv: Sequence[str] | None = None) -> int:
             command.add_argument("--receiver", default="KOMBI")
     args = parser.parse_args(argv)
     try:
+        if args.command in ("generate-ood", "benchmark-ood"):
+            from autocan.ood import generate_ood
+            from autocan.ood_benchmark import evaluate_ood
+
+            if args.command == "generate-ood":
+                ood_meta = generate_ood(
+                    args.source,
+                    args.reference,
+                    args.output,
+                    seed=args.seed,
+                    fault_runs=args.fault_runs,
+                    normal_runs=args.normal_runs,
+                    max_bytes=args.max_bytes,
+                )
+            else:
+                ood_meta = evaluate_ood(
+                    args.source, args.reference, args.suite, args.output, max_bytes=args.max_bytes
+                )
+            _write(
+                {
+                    "status": ood_meta["status"],
+                    "path": str(args.output),
+                    "semantic_sha256": ood_meta["semantic_sha256"],
+                },
+                stream=sys.stdout,
+            )
+            return 0
         if args.command == "benchmark":
             from autocan.benchmark import run_benchmark
             from autocan.features import FeatureConfig
