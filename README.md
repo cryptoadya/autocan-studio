@@ -32,7 +32,9 @@ aligned numeric windows and separate labels with mode/type group stratification
 and train-only imputation/scaling. The [common M9 window evaluator](docs/WINDOW_EVALUATION.md)
 adds precision/recall/F1, AP/PR and binary confusion counts through one score
 contract for rules and future models. Model training and broader validation
-remain later work.
+remain later work. [Saved-window loading and `evaluate-rules`](docs/SAVED_WINDOW_RULES.md)
+validate preparation artifacts against their original collection and evaluate
+the rules on the already saved splits without fitting or tuning.
 
 ## Run the dashboard
 

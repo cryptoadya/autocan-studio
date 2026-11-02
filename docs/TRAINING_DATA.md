@@ -153,8 +153,9 @@ publication I/O failure/crash. Existing outputs are never overwritten.
 
 This pass prepares ID only. The [second M9 pass](WINDOW_EVALUATION.md) adds common
 window metrics and a raw-feature rule adapter, with alignment/split/warm-up
-checks shared by future model scores. Future M9 work must validate/load this
-artifact contract, publish rule/model comparisons on the same frozen split and
+checks shared by future model scores. The [third pass](SAVED_WINDOW_RULES.md)
+loads and validates this saved contract and evaluates fixed rules on its splits.
+Future M9 work must publish rule/model comparisons on the same frozen split and
 fit the first estimators on the intended training subset. Model and
 threshold selection stays on validation; final test/OOD must remain outside
 selection. Applying a frozen preprocessor to OOD will not permit refitting it.

@@ -220,5 +220,8 @@ See [v0.1 acceptance](V0_1_ACCEPTANCE.md) for executed checks and limitations.
 - The [shared window evaluator](WINDOW_EVALUATION.md) adds precision/recall/F1,
   AP/PR and binary confusion counts for rules and future scores with strict
   alignment, eligibility and explicit threshold policies.
-- Training, threshold/model selection, saved-artifact import and a reproducible
-  published rule/model comparison remain subsequent M9 work.
+- [Saved artifact loading and rule CLI](SAVED_WINDOW_RULES.md) validate source,
+  schemas, lineage, frozen transforms and coverage, then evaluate fixed rules
+  on the saved preparation splits with reproducible metrics/reports.
+- Training, threshold/model selection and a reproducible published rule/model
+  comparison remain subsequent M9 work.

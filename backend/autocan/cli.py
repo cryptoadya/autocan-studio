@@ -237,6 +237,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     prepare.add_argument("--window", type=_time_ns, default=500_000_000, metavar="SECONDS")
     prepare.add_argument("--heartbeat-periods", type=int, default=5)
     prepare.add_argument("--max-bytes", type=int, default=64 * 1024 * 1024)
+    evaluate_rules = commands.add_parser(
+        "evaluate-rules", help="validate saved M9 windows and evaluate fixed rules on their splits"
+    )
+    evaluate_rules.add_argument("prepared", type=Path)
+    evaluate_rules.add_argument(
+        "--source", type=Path, required=True, help="original Factory collection"
+    )
+    evaluate_rules.add_argument("--output", type=Path, required=True)
+    evaluate_rules.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
     for name, help_text in (
         ("trace-export", "export a verified JSONL run to a new Parquet bundle"),
         ("trace-import", "restore a verified Parquet bundle as a new JSONL run"),
@@ -250,6 +259,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             command.add_argument("--receiver", default="KOMBI")
     args = parser.parse_args(argv)
     try:
+        if args.command == "evaluate-rules":
+            from autocan.window_benchmark import evaluate_saved_rules
+
+            evaluated = evaluate_saved_rules(
+                args.prepared, args.output, source=args.source, max_bytes=args.max_bytes
+            )
+            _write(
+                {
+                    "status": evaluated["status"],
+                    "path": str(args.output),
+                    "semantic_sha256": evaluated["semantic_sha256"],
+                },
+                stream=sys.stdout,
+            )
+            return 0
         if args.command == "prepare-ml":
             from autocan.features import FeatureConfig
             from autocan.training_data import prepare_training_data

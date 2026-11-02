@@ -223,3 +223,231 @@ def test_common_window_evaluator_scores_rules_on_prepared_partitions(
             assert len(result["pr_curve"]["precision"]) == len(result["pr_curve"]["thresholds"]) + 1
     # Evaluating rules neither fits a detector nor rewrites the prepared data.
     assert json.loads((output / "manifest.json").read_text())["models_trained"] == []
+
+
+@pytest.fixture(scope="module")
+def prepared(source: Path, tmp_path_factory: pytest.TempPathFactory) -> Path:
+    from autocan.features import FeatureConfig
+    from autocan.training_data import prepare_training_data
+
+    root = tmp_path_factory.mktemp("saved-windows") / "prepared"
+    prepare_training_data(source, root, config=FeatureConfig(window_ns=100_000_000))
+    return root
+
+
+def test_loader_validates_existing_export_without_refitting(
+    source: Path, prepared: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from autocan.training_artifacts import load_training_data
+
+    def no_fit(*args: object, **kwargs: object) -> None:
+        pytest.fail("loading/evaluation must not fit preprocessing or detectors")
+
+    monkeypatch.setattr("autocan.preprocessing.fit_training", no_fit)
+    monkeypatch.setattr("autocan.training_data.fit_training", no_fit)
+    loaded = load_training_data(prepared, source=source)
+    rows = list(loaded.iter_windows())
+    assert len(rows) == 960
+    assert sum(not row.key.eligible for row in rows) == 48
+    assert loaded.columns == tuple(pq.read_schema(prepared / "features.parquet").names)
+    assert rows[0].key.row_index == 0 and rows[-1].key.row_index == 959
+    assert all(len(row.features) == len(loaded.columns) for row in rows)
+
+
+@pytest.mark.parametrize("damage", ["status", "version", "path", "checksum", "lineage", "semantic"])
+def test_loader_rejects_invalid_manifest_or_inventory(
+    source: Path, prepared: Path, tmp_path: Path, damage: str
+) -> None:
+    from shutil import copytree
+
+    from autocan.training_artifacts import load_training_data
+
+    root = copytree(prepared, tmp_path / "broken")
+    path = root / "manifest.json"
+    manifest = json.loads(path.read_text())
+    if damage == "status":
+        manifest["status"] = "incomplete"
+    elif damage == "version":
+        manifest["training_data_version"] = "unknown"
+    elif damage == "path":
+        manifest["artifacts"]["../outside"] = manifest["artifacts"].pop("features.parquet")
+    elif damage == "checksum":
+        (root / "features.parquet").write_bytes(b"not parquet")
+    elif damage == "lineage":
+        manifest["source_manifest_sha256"] = "0" * 64
+    else:
+        manifest["semantic_sha256"] = "0" * 64
+    path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError):
+        load_training_data(root, source=source)
+
+
+@pytest.mark.parametrize("directory", [False, True])
+def test_loader_rejects_symlink_artifacts(
+    source: Path, prepared: Path, tmp_path: Path, directory: bool
+) -> None:
+    from shutil import copytree, rmtree
+
+    from autocan.training_artifacts import load_training_data
+
+    root = copytree(prepared, tmp_path / "linked")
+    name = "labels" if directory else "features.parquet"
+    link = root / name
+    if directory:
+        rmtree(link)
+    else:
+        link.unlink()
+    link.symlink_to(prepared / name, target_is_directory=directory)
+    with pytest.raises(ValueError, match="symlink"):
+        load_training_data(root, source=source)
+
+
+@pytest.mark.parametrize("damage", ["schema", "alignment", "split", "label", "mask", "scaled"])
+def test_loader_rejects_rehashed_inconsistent_tables(
+    source: Path, prepared: Path, tmp_path: Path, damage: str
+) -> None:
+    from hashlib import sha256
+    from shutil import copytree
+
+    import pyarrow as pa
+
+    from autocan.training_artifacts import load_training_data
+    from autocan.validation import canonical_bytes
+
+    root = copytree(prepared, tmp_path / "rehashed")
+    name = {
+        "schema": "features.parquet",
+        "alignment": "windows.parquet",
+        "split": "windows.parquet",
+        "label": "labels/windows.parquet",
+        "mask": "features.parquet",
+        "scaled": "scaled/all_train.parquet",
+    }[damage]
+    table = pq.read_table(root / name)
+    rows = table.to_pylist()
+    if damage == "schema":
+        table = table.select(list(reversed(table.column_names)))
+    else:
+        if damage == "alignment":
+            rows[0]["row_index"] = 1
+        elif damage == "split":
+            rows[0]["split"] = "other"
+        elif damage == "label":
+            rows[0]["normal_run"] = not rows[0]["normal_run"]
+        elif damage == "mask":
+            rows[0]["missing__rpm_mean"] = 1.0 - rows[0]["missing__rpm_mean"]
+        else:
+            rows[0][table.column_names[0]] += 1
+        table = pa.Table.from_pylist(rows, schema=table.schema)
+    pq.write_table(table, root / name, row_group_size=256)
+    manifest_path = root / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["artifacts"][name].update(
+        bytes=(root / name).stat().st_size,
+        sha256=sha256((root / name).read_bytes()).hexdigest(),
+        semantic_sha256=sha256(
+            b"".join(canonical_bytes(row) + b"\n" for row in table.to_pylist())
+        ).hexdigest(),
+    )
+    manifest_path.write_text(json.dumps(manifest))
+    expected = {
+        "schema": "schema: features.parquet",
+        "alignment": "key alignment",
+        "split": "key alignment",
+        "label": "label alignment",
+        "mask": "missing mask",
+        "scaled": "scaled training table",
+    }[damage]
+    with pytest.raises(ValueError, match=expected):
+        load_training_data(root, source=source)
+
+
+@pytest.mark.parametrize("damage", ["coverage", "scope", "fingerprint", "split"])
+def test_loader_validates_rehashed_json_contracts(
+    source: Path, prepared: Path, tmp_path: Path, damage: str
+) -> None:
+    from hashlib import sha256
+    from shutil import copytree
+
+    from autocan.training_artifacts import load_training_data
+
+    root = copytree(prepared, tmp_path / "json-contract")
+    name = (
+        "coverage.json"
+        if damage == "coverage"
+        else "split.json"
+        if damage == "split"
+        else "preprocessing/all_train.json"
+    )
+    path = root / name
+    value = json.loads(path.read_text())
+    if damage == "coverage":
+        value["partitions"]["train"]["eligible_windows"] += 1
+    elif damage == "scope":
+        value["normal_only"] = True
+    elif damage == "fingerprint":
+        value["fit_rows_sha256"] = "0" * 64
+    else:
+        value["assignments"][0]["split"] = "other"
+    path.write_text(json.dumps(value))
+    manifest_path = root / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["artifacts"][name].update(
+        bytes=path.stat().st_size, sha256=sha256(path.read_bytes()).hexdigest()
+    )
+    manifest_path.write_text(json.dumps(manifest))
+    expected = (
+        "coverage"
+        if damage == "coverage"
+        else "scope|fingerprint"
+        if damage in ("scope", "fingerprint")
+        else "split"
+    )
+    with pytest.raises(ValueError, match=expected):
+        load_training_data(root, source=source)
+
+
+def test_rules_cli_uses_saved_split_and_is_reproducible(
+    source: Path, prepared: Path, tmp_path: Path
+) -> None:
+    from autocan.cli import main
+
+    first, second = tmp_path / "first", tmp_path / "second"
+    for target in (first, second):
+        assert (
+            main(
+                ["evaluate-rules", str(prepared), "--source", str(source), "--output", str(target)]
+            )
+            == 0
+        )
+    for name in ("manifest.json", "metrics.json", "report.md", "split.json"):
+        assert (first / name).read_bytes() == (second / name).read_bytes()
+    assert (first / "split.json").read_bytes() == (prepared / "split.json").read_bytes()
+    metrics = json.loads((first / "metrics.json").read_text())
+    coverage = json.loads((prepared / "coverage.json").read_text())["partitions"]
+    assert len(metrics["rows"]) == 9
+    for row in metrics["rows"]:
+        assert row["evaluated_windows"] == coverage[row["split"]]["eligible_windows"]
+        assert row["positive_windows"] == coverage[row["split"]]["positive_windows"]
+    assert json.loads((first / "manifest.json").read_text())["models_trained"] == []
+    assert (
+        main(["evaluate-rules", str(prepared), "--source", str(source), "--output", str(first)])
+        == 1
+    )
+    failed = tmp_path / "quota"
+    assert (
+        main(
+            [
+                "evaluate-rules",
+                str(prepared),
+                "--source",
+                str(source),
+                "--output",
+                str(failed),
+                "--max-bytes",
+                "4096",
+            ]
+        )
+        == 1
+    )
+    assert not failed.exists()
