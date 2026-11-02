@@ -255,6 +255,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     isolation_forest.add_argument("--output", type=Path, required=True)
     isolation_forest.add_argument("--seed", type=_seed, default=42)
     isolation_forest.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
+    random_forest = commands.add_parser(
+        "train-random-forest", help="fit labeled train windows and compare both forests with rules"
+    )
+    random_forest.add_argument("prepared", type=Path)
+    random_forest.add_argument("--source", type=Path, required=True)
+    random_forest.add_argument("--output", type=Path, required=True)
+    random_forest.add_argument("--seed", type=_seed, default=42)
+    random_forest.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
     for name, help_text in (
         ("trace-export", "export a verified JSONL run to a new Parquet bundle"),
         ("trace-import", "restore a verified Parquet bundle as a new JSONL run"),
@@ -268,10 +276,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             command.add_argument("--receiver", default="KOMBI")
     args = parser.parse_args(argv)
     try:
-        if args.command == "train-isolation-forest":
-            from autocan.ml_experiment import run_isolation_forest
+        if args.command in ("train-isolation-forest", "train-random-forest"):
+            from autocan.ml_experiment import run_isolation_forest, run_random_forest
 
-            experiment = run_isolation_forest(
+            run_experiment = (
+                run_random_forest if args.command == "train-random-forest" else run_isolation_forest
+            )
+            experiment = run_experiment(
                 args.prepared,
                 args.output,
                 source=args.source,

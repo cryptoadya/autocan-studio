@@ -564,3 +564,138 @@ def test_isolation_forest_cli_fits_normal_train_selects_validation_and_compares_
         == 1
     )
     assert not failed.exists()
+
+
+def test_random_forest_cli_compares_five_detectors_with_validation_only_thresholds(
+    source: Path, prepared: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hashlib import sha256
+
+    from autocan.cli import main
+    from autocan.validation import canonical_bytes
+
+    def no_preprocessing_fit(*args: object, **kwargs: object) -> None:
+        pytest.fail("both classifiers must reuse their saved preprocessing scopes")
+
+    monkeypatch.setattr("autocan.preprocessing.fit_training", no_preprocessing_fit)
+    monkeypatch.setattr("autocan.training_data.fit_training", no_preprocessing_fit)
+    first, second = tmp_path / "rf-first", tmp_path / "rf-second"
+    for target in (first, second):
+        assert (
+            main(
+                [
+                    "train-random-forest",
+                    str(prepared),
+                    "--source",
+                    str(source),
+                    "--output",
+                    str(target),
+                    "--seed",
+                    "42",
+                ]
+            )
+            == 0
+        )
+    for path in first.rglob("*"):
+        if path.is_file():
+            assert path.read_bytes() == (second / path.relative_to(first)).read_bytes()
+    windows = pq.read_table(prepared / "windows.parquet").to_pylist()
+    labels = pq.read_table(prepared / "labels/windows.parquet").to_pylist()
+    targets = [w for w in windows if w["split"] == "train" and w["eligible"]]
+    model = json.loads((first / "models/random_forest/model.json").read_text())
+    frozen = json.loads((prepared / "preprocessing/all_train.json").read_text())
+    assert model["fit_rows"] == frozen["fit_rows"] == len(targets)
+    assert model["fit_rows_sha256"] == frozen["fit_rows_sha256"]
+    assert (
+        model["label_rows_sha256"]
+        == sha256(
+            b"".join(
+                canonical_bytes(
+                    {"row_index": w["row_index"], "label": labels[w["row_index"]]["label"]}
+                )
+                + b"\n"
+                for w in targets
+            )
+        ).hexdigest()
+    )
+    for model_id, scope in (("random_forest", "all_train"), ("isolation_forest", "normal_train")):
+        assert (first / f"models/{model_id}/preprocessing.json").read_bytes() == (
+            prepared / f"preprocessing/{scope}.json"
+        ).read_bytes()
+    assert (first / "split.json").read_bytes() == (prepared / "split.json").read_bytes()
+    scores = pq.read_table(first / "scores.parquet").to_pylist()
+    assert len(scores) == 5 * len(windows)
+    val = [w for w in windows if w["split"] == "validation" and w["eligible"]]
+    for model_id in ("random_forest", "isolation_forest"):
+        selection = json.loads((first / f"models/{model_id}/threshold.json").read_text())
+        assert selection["split"] == "validation" and selection["windows"] == len(val)
+        model_scores = [r for r in scores if r["model_id"] == model_id]
+        cutoffs = {model_scores[w["row_index"]]["score"] for w in val}
+
+        def f1(
+            cutoff: float,
+            probabilities: tuple[float, ...] = tuple(float(r["score"]) for r in model_scores),
+        ) -> float:
+            tp = sum(
+                labels[w["row_index"]]["label"] is True and probabilities[w["row_index"]] >= cutoff
+                for w in val
+            )
+            positives = sum(labels[w["row_index"]]["label"] is True for w in val)
+            predicted = sum(probabilities[w["row_index"]] >= cutoff for w in val)
+            return float(2 * tp / (positives + predicted))
+
+        assert selection["threshold"] == max(cutoffs, key=lambda t: (f1(t), t))
+    metrics = json.loads((first / "metrics.json").read_text())
+    assert len(metrics["rows"]) == 15
+    assert metrics["format"] == "autocan-forest-comparison-metrics"
+    reference = tmp_path / "iforest-reference"
+    assert (
+        main(
+            [
+                "train-isolation-forest",
+                str(prepared),
+                "--source",
+                str(source),
+                "--output",
+                str(reference),
+            ]
+        )
+        == 0
+    )
+    assert [r for r in metrics["rows"] if r["model_id"] != "random_forest"] == json.loads(
+        (reference / "metrics.json").read_text()
+    )["rows"]
+    assert (first / "models/isolation_forest/model.pkl").read_bytes() == (
+        reference / "model.pkl"
+    ).read_bytes()
+    for part in ("train", "validation", "test"):
+        rows = [r for r in metrics["rows"] if r["split"] == part]
+        assert len(rows) == 5
+        assert len({r["evaluated_windows"] for r in rows}) == 1
+        assert len({r["positive_windows"] for r in rows}) == 1
+    manifest = json.loads((first / "manifest.json").read_text())
+    assert manifest["models_trained"] == ["isolation_forest", "random_forest"]
+    assert manifest["ood_used"] is False
+    assert (
+        main(
+            ["train-random-forest", str(prepared), "--source", str(source), "--output", str(first)]
+        )
+        == 1
+    )
+    failed = tmp_path / "rf-quota"
+    assert (
+        main(
+            [
+                "train-random-forest",
+                str(prepared),
+                "--source",
+                str(source),
+                "--output",
+                str(failed),
+                "--max-bytes",
+                "4096",
+            ]
+        )
+        == 1
+    )
+    assert not failed.exists()

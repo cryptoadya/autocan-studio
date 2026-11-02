@@ -37,6 +37,9 @@ the rules on the already saved splits without fitting or tuning.
 The [first IsolationForest experiment](docs/ISOLATION_FOREST.md) fits eligible
 normal train windows, selects its threshold only on validation and compares
 against those same rules/splits after freezing the model and threshold.
+The [RandomForestClassifier comparison](docs/RANDOM_FOREST.md) fits labeled train
+windows with train-only class weights and reports both forests plus the rules,
+with independent validation-only thresholds and held-out test scoring.
 
 ## Run the dashboard
 

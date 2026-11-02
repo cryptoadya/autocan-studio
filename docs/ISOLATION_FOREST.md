@@ -98,6 +98,8 @@ fixture results verify the experiment path, not broad generalization or
 real-vehicle quality. The integration test independently recomputes the
 validation optimum and checks identical rule rows against `evaluate-rules`.
 
-RandomForest, OOD scoring, uncertainty/runtime studies, model import/live
+The [fifth pass](RANDOM_FOREST.md) adds supervised RandomForest and a joint
+comparison while preserving this standalone command's format and results.
+OOD scoring, uncertainty/runtime studies, model import/live
 inference and final M9 acceptance remain separate work. No M9 completion or
 advantage over rules is claimed.

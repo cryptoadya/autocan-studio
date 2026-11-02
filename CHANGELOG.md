@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — M9 supervised RandomForest comparison (fifth pass)
+
+- Fit a fixed, seeded RandomForestClassifier on eligible labeled train windows
+  with frozen all-train preprocessing and train-only balanced class weights.
+- Reuse validation-only F1 threshold selection independently for both forests;
+  freeze both models/cutoffs before test scoring and never load OOD for tuning.
+- Add `train-random-forest` with both models/threshold audits, label fingerprints,
+  fifteen common metric rows, scores, report and provenance on saved splits.
+- Share bounded orchestration while preserving standalone IsolationForest's
+  format, estimator bytes and results. Verify holdout isolation, rule/IF parity,
+  reproducibility and quotas. Keep model imports, OOD and final acceptance separate.
+
 ## Unreleased — M9 first IsolationForest comparison (fourth pass)
 
 - Fit a seeded, fixed-parameter IsolationForest only on eligible windows from
