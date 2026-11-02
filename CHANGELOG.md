@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — M8 whole-run splits and fixed-rule benchmark (second pass)
+
+- Freeze seeded train/validation/test partitions before features; keep exact
+  scenario/observer duplicates in one group and reject incompatible split reuse.
+- Add CLI `benchmark` over verified M7 collections with bounded, staged output:
+  split manifest, per-run evidence, nine rule/split metric rows and a readable report.
+- Group message alerts per rule and match fault episodes one-to-one with explicit
+  target, grace, censoring and latency semantics. Pool detection/precision/F1,
+  per-fault-type latency and false alarm episodes/hour on fully normal runs.
+- Record dataset/config/code/environment provenance and logical/physical hashes.
+  Thresholds remain predeclared; OOD sets, tuning, ML and UI remain subsequent work.
+
 ## Unreleased — M8 causal windows and Tier 0 rules (first pass)
 
 - Read verified M7 selected-receiver observations without supplying ground truth
