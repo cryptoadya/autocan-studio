@@ -27,7 +27,10 @@ disagreement. The [second M8 pass](docs/BENCHMARK.md) freezes whole-run/group
 splits and benchmarks those fixed rules with episode detection, latency and
 false alarms/hour on normal runs. The [third M8 pass](docs/OOD.md) evaluates
 separate held-out fault-type and normal-family sets against a frozen ID reference,
-without tuning thresholds on OOD. ML and broader validation remain later work.
+without tuning thresholds on OOD. [M9 preparation](docs/TRAINING_DATA.md) exports
+aligned numeric windows and separate labels with mode/type group stratification
+and train-only imputation/scaling. Model training and broader validation remain
+later work.
 
 ## Run the dashboard
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — M9 window datasets and train-only preprocessing (preparation)
+
+- Add `prepare-ml` with pure numeric Parquet features/missing masks, separate
+  run/window keys and intervention labels, and frozen transformed matrices.
+- Preserve duplicate groups while stratifying configured mode/normal/fault
+  coverage across train/validation/test; validate eligible-window coverage too.
+- Fit JSON median imputers/population scalers only on eligible train windows,
+  with separate all-train and entirely-normal-train scopes; never fit held-out data.
+- Record window-label/warm-up policies, coverage, fit fingerprints, source/split/
+  column lineage, code/environment provenance, quotas and repeatable logical hashes.
+- Keep M8 split/references unchanged. No estimators, threshold selection, OOD
+  fitting, new ML dependencies or UI changes are included.
+
 ## Unreleased — M8 frozen OOD fault and normal sets (third pass)
 
 - Add `generate-ood` to reserve fault types and normal families absent from all
