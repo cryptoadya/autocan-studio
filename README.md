@@ -29,8 +29,10 @@ false alarms/hour on normal runs. The [third M8 pass](docs/OOD.md) evaluates
 separate held-out fault-type and normal-family sets against a frozen ID reference,
 without tuning thresholds on OOD. [M9 preparation](docs/TRAINING_DATA.md) exports
 aligned numeric windows and separate labels with mode/type group stratification
-and train-only imputation/scaling. Model training and broader validation remain
-later work.
+and train-only imputation/scaling. The [common M9 window evaluator](docs/WINDOW_EVALUATION.md)
+adds precision/recall/F1, AP/PR and binary confusion counts through one score
+contract for rules and future models. Model training and broader validation
+remain later work.
 
 ## Run the dashboard
 

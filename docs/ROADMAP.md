@@ -212,3 +212,13 @@ See [v0.1 acceptance](V0_1_ACCEPTANCE.md) for executed checks and limitations.
 - [Acceptance report](M7_ACCEPTANCE.md) records evidence, reproduction, the browser
   screenshot and explicit limits. No M7-local acceptance work remains; M8 and
   release preparation/publication are separate actions.
+
+## M9 preparation and common evaluation
+
+- [Window datasets](TRAINING_DATA.md) freeze stratified whole-run/group splits,
+  separate numeric inputs from truth/keys and fit preprocessing only on train.
+- The [shared window evaluator](WINDOW_EVALUATION.md) adds precision/recall/F1,
+  AP/PR and binary confusion counts for rules and future scores with strict
+  alignment, eligibility and explicit threshold policies.
+- Training, threshold/model selection, saved-artifact import and a reproducible
+  published rule/model comparison remain subsequent M9 work.

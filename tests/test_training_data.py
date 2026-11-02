@@ -174,3 +174,52 @@ def test_failed_quota_and_existing_output_preserve_data(source: Path, tmp_path: 
     with pytest.raises(FileExistsError):
         prepare_training_data(source, existing)
     assert (existing / "keep").read_text() == "unchanged"
+
+
+def test_common_window_evaluator_scores_rules_on_prepared_partitions(
+    source: Path, tmp_path: Path
+) -> None:
+    from autocan.features import FeatureConfig
+    from autocan.training_data import prepare_training_data
+    from autocan.window_evaluation import (
+        WindowKey,
+        WindowScore,
+        WindowTruth,
+        baseline_window_scores,
+        evaluate_windows,
+    )
+
+    output = tmp_path / "evaluation-input"
+    config = FeatureConfig(window_ns=100_000_000)
+    prepare_training_data(source, output, config=config)
+    features = pq.read_table(output / "features.parquet").to_pylist()
+    windows = pq.read_table(output / "windows.parquet").to_pylist()
+    labels = pq.read_table(output / "labels/windows.parquet").to_pylist()
+    targets = []
+    predictions: dict[str, list[WindowScore]] = {}
+    for feature, window, label in zip(features, windows, labels, strict=True):
+        assert window["row_index"] == label["row_index"]
+        key = WindowKey(**window)
+        targets.append(WindowTruth(key, label["label"]))
+        for rule, evidence in baseline_window_scores(feature, config).items():
+            predictions.setdefault(rule, []).append(WindowScore(key, evidence.score))
+    coverage = json.loads((output / "coverage.json").read_text())["partitions"]
+    for part, counts in coverage.items():
+        for rule, evidence in baseline_window_scores(features[0], config).items():
+            result = evaluate_windows(
+                targets,
+                predictions[rule],
+                model_id=rule,
+                split=part,
+                threshold=evidence.threshold,
+                comparison=evidence.comparison,
+            )
+            assert result["input_windows"] == 960
+            assert result["selected_windows"] == counts["windows"]
+            assert result["evaluated_windows"] == counts["eligible_windows"]
+            assert result["positive_windows"] == counts["positive_windows"]
+            assert result["excluded_warmup_windows"] > 0
+            assert result["average_precision"] is not None
+            assert len(result["pr_curve"]["precision"]) == len(result["pr_curve"]["thresholds"]) + 1
+    # Evaluating rules neither fits a detector nor rewrites the prepared data.
+    assert json.loads((output / "manifest.json").read_text())["models_trained"] == []

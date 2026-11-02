@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — M9 common window evaluator (second pass)
+
+- Add a shared score/truth contract with strict window identity/order, whole-run
+  split, eligibility, finite-score and quota checks, without training models.
+- Pool precision/recall/F1 and normal/anomaly confusion counts at an externally
+  fixed threshold; compute non-interpolated AP and tie-grouped PR curves.
+- Score all three rules from raw M9 numeric features, retaining missing-evidence
+  windows with explicit zero scores and preserving rule threshold boundaries.
+- Verify prepared tables/splits and warm-up coverage. M8 episode/OOD artifacts
+  retain their behavior; artifact import, comparison CLI and fitting remain later work.
+
 ## Unreleased — M9 window datasets and train-only preprocessing (preparation)
 
 - Add `prepare-ml` with pure numeric Parquet features/missing masks, separate
