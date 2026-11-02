@@ -226,6 +226,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     ood_benchmark.add_argument("--output", type=Path, required=True)
     ood_benchmark.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
+    prepare = commands.add_parser(
+        "prepare-ml", help="export windows and separate labels with train-only preprocessing"
+    )
+    prepare.add_argument("source", type=Path)
+    prepare.add_argument("--output", type=Path, required=True)
+    prepare_partition = prepare.add_mutually_exclusive_group()
+    prepare_partition.add_argument("--split-seed", type=_seed, default=42)
+    prepare_partition.add_argument("--split", type=Path)
+    prepare.add_argument("--window", type=_time_ns, default=500_000_000, metavar="SECONDS")
+    prepare.add_argument("--heartbeat-periods", type=int, default=5)
+    prepare.add_argument("--max-bytes", type=int, default=64 * 1024 * 1024)
     for name, help_text in (
         ("trace-export", "export a verified JSONL run to a new Parquet bundle"),
         ("trace-import", "restore a verified Parquet bundle as a new JSONL run"),
@@ -239,6 +250,30 @@ def main(argv: Sequence[str] | None = None) -> int:
             command.add_argument("--receiver", default="KOMBI")
     args = parser.parse_args(argv)
     try:
+        if args.command == "prepare-ml":
+            from autocan.features import FeatureConfig
+            from autocan.training_data import prepare_training_data
+
+            prepared = prepare_training_data(
+                args.source,
+                args.output,
+                config=FeatureConfig(
+                    window_ns=args.window, heartbeat_periods=args.heartbeat_periods
+                ),
+                split_seed=args.split_seed,
+                split_path=args.split,
+                max_bytes=args.max_bytes,
+            )
+            _write(
+                {
+                    "status": prepared["status"],
+                    "path": str(args.output),
+                    "rows": prepared["rows"],
+                    "semantic_sha256": prepared["semantic_sha256"],
+                },
+                stream=sys.stdout,
+            )
+            return 0
         if args.command in ("generate-ood", "benchmark-ood"):
             from autocan.ood import generate_ood
             from autocan.ood_benchmark import evaluate_ood
