@@ -25,7 +25,9 @@ The first M8 headless pass adds [causal windows and Tier 0 alerts](docs/BASELINE
 over these observer datasets: heartbeat timeout, RPM derivative and wheel-speed
 disagreement. The [second M8 pass](docs/BENCHMARK.md) freezes whole-run/group
 splits and benchmarks those fixed rules with episode detection, latency and
-false alarms/hour on normal runs. OOD evaluation and ML remain later work.
+false alarms/hour on normal runs. The [third M8 pass](docs/OOD.md) evaluates
+separate held-out fault-type and normal-family sets against a frozen ID reference,
+without tuning thresholds on OOD. ML and broader validation remain later work.
 
 ## Run the dashboard
 
