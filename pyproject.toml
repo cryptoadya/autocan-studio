@@ -12,8 +12,10 @@ license = "MIT"
 dependencies = [
     "cantools>=45.1.2",
     "fastapi>=0.135",
+    "numpy>=2.0",
     "pyarrow>=23",
     "python-can>=4.6.1",
+    "scikit-learn==1.9.1",
     "uvicorn[standard]>=0.41",
 ]
 
@@ -67,6 +69,10 @@ files = ["backend", "tests"]
 
 [[tool.mypy.overrides]]
 module = ["pyarrow", "pyarrow.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["sklearn", "sklearn.*"]
 ignore_missing_imports = true
 
 [dependency-groups]

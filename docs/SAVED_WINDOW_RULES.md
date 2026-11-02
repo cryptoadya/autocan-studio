@@ -89,3 +89,7 @@ schedule a model's final test. Validation remains the only future selection
 set; test and OOD must stay outside tuning. Repeating against unchanged saved
 inputs and the same code/environment produces identical outputs. No model
 training, OOD transformation, Studio UI or real-vehicle validation is included.
+
+The [fourth M9 pass](ISOLATION_FOREST.md) reuses this loader and frozen normal-train
+preprocessing for the first IsolationForest comparison, with validation-only
+threshold selection. `evaluate-rules` retains its existing behavior.

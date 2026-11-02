@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — M9 first IsolationForest comparison (fourth pass)
+
+- Fit a seeded, fixed-parameter IsolationForest only on eligible windows from
+  entirely normal train runs, reusing the frozen normal-train preprocessor.
+- Choose the anomaly-score cutoff by validation-only pooled F1 with explicit
+  tied-score/highest-threshold policies; freeze selection before scoring test.
+- Add `train-isolation-forest` with saved model/preprocessing/threshold/scores,
+  twelve common metric rows, rule comparison report and hashed provenance.
+- Lock NumPy/scikit-learn dependencies; verify leakage guards, rule parity,
+  threshold optimum, repeatable outputs and quotas. Record the small fixture's
+  loss to the wheel-residual baseline honestly. OOD is not loaded or tuned.
+
 ## Unreleased — M9 saved window loading and rule CLI (third pass)
 
 - Load existing prepared artifacts with bounded source-bound validation of

@@ -27,13 +27,15 @@ DEFAULT_OUTPUT_BYTES = 16 * 1024 * 1024
 MAX_OUTPUT_BYTES = 64 * 1024 * 1024
 
 
-def _report(rows: list[WindowMetrics], prepared_hash: str) -> str:
+def _report(rows: list[WindowMetrics], prepared_hash: str, *, model_note: str | None = None) -> str:
     lines = [
-        "# Fixed-rule window evaluation",
+        "# IsolationForest and fixed-rule comparison"
+        if model_note
+        else "# Fixed-rule window evaluation",
         "",
         f"Prepared dataset semantic SHA-256: `{prepared_hash}`.",
         f"Evaluator `{WINDOW_EVALUATOR_VERSION}`; detector `{DETECTOR_ID}`.",
-        "Saved splits/configuration; no fitting or threshold selection.",
+        model_note or "Saved splits/configuration; no fitting or threshold selection.",
         "",
         "| Split | Rule | Threshold | Decision | Windows | Positive | "
         "Precision | Recall | F1 | AP |",
@@ -68,7 +70,9 @@ def _report(rows: list[WindowMetrics], prepared_hash: str) -> str:
             "Confusion matrices and full PR curves are in metrics.json. Matrices use true rows and",
             "predicted columns, both [normal, anomaly]: [[TN, FP], [FN, TP]].",
             "These are intervention window metrics, distinct from M8 alert episode metrics.",
-            "No training, test/OOD tuning, or real-vehicle quality claim is made.",
+            "No test/OOD tuning or real-vehicle quality claim is made."
+            if model_note
+            else "No training, test/OOD tuning, or real-vehicle quality claim is made.",
             "",
         ]
     )
