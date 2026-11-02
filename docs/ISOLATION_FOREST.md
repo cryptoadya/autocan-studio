@@ -100,6 +100,7 @@ validation optimum and checks identical rule rows against `evaluate-rules`.
 
 The [fifth pass](RANDOM_FOREST.md) adds supervised RandomForest and a joint
 comparison while preserving this standalone command's format and results.
-OOD scoring, uncertainty/runtime studies, model import/live
-inference and final M9 acceptance remain separate work. No M9 completion or
-advantage over rules is claimed.
+The [sixth pass](ML_OOD.md) scores the saved joint forest experiment on frozen
+OOD domains. Target-aware fault-event analysis, uncertainty/runtime studies,
+model import/live inference and final M9 acceptance remain separate work.
+No M9 completion or general advantage over rules is claimed.
