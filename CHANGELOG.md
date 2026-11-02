@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — M8 causal windows and Tier 0 rules (first pass)
+
+- Read verified M7 selected-receiver observations without supplying ground truth
+  to the feature pipeline; share receipt-time windows between offline and live inputs.
+- Close bounded windows on virtual deadlines, including silence, with explicit
+  missing-data, warm-up, boundary and interarrival/derivative semantics.
+- Add CLI `baseline` with versioned features, scores and grouped open/resolved
+  alerts for heartbeat timeout, absolute RPM derivative and wheel disagreement.
+- Compare wheels against their observed median because the current DBC has no
+  independent vehicle-speed signal. Run splits, benchmark/OOD evaluation, ML and
+  Studio API/UI integration remain subsequent work.
+
 ## Unreleased — M7 final acceptance and provenance checks
 
 - Recompute nested Parquet/observer schemas and semantic hashes during collection

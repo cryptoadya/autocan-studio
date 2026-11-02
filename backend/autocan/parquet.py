@@ -6,6 +6,7 @@ and the original manifest; importing must pass the original trace verifier.
 
 from collections.abc import Generator, Iterator
 from contextlib import ExitStack, closing, contextmanager
+from dataclasses import dataclass
 from hashlib import sha256
 from heapq import merge
 from itertools import zip_longest
@@ -16,6 +17,8 @@ from typing import cast
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from autocan.dbc import profile_bytes, profile_from_version
+from autocan.events import CanObservation
 from autocan.network_profile import PLAN_BY_ID, RECEIVERS
 from autocan.traces import (
     DEFAULT_MAX_BYTES,
@@ -456,6 +459,50 @@ def export_observer(
             max_bytes,
         )
     return meta
+
+
+@dataclass(frozen=True, slots=True)
+class ObserverStream:
+    profile_id: str
+    receiver_id: str
+    end_ns: int
+    observations: Iterator[CanObservation]
+
+
+@contextmanager
+def open_observer(source: Path) -> Iterator[ObserverStream]:
+    """Verify an M7 export, exposing wire observations and timing context only.
+
+    Labels are checked for file integrity but never decoded or returned here.
+    The iterator must be exhausted to finish its semantic checksum verification.
+    """
+    meta = _read_export(source, DEFAULT_MAX_BYTES, observer=True)
+    trace = object_value(meta["trace_manifest"], "trace manifest")
+    profile = profile_from_version(trace.get("profile_version"))
+    if trace.get("profile_sha256") != sha256(profile_bytes(profile)).hexdigest():
+        raise TraceError("observer profile checksum is incompatible")
+    final = object_value(trace.get("final_state"), "final state")
+    end = integer(final.get("sim_time_ns"), "run end")
+    receiver = meta["receiver_id"]
+    if not isinstance(receiver, str):
+        raise TraceError("observer receiver must be a string")
+    artifacts = object_value(meta["artifacts"], "artifacts")
+    info = object_value(artifacts["observations.parquet"], "observations artifact")
+
+    def observations() -> Generator[CanObservation, None, None]:
+        with closing(_rows(source, "observations.parquet", info)) as rows:
+            for row in rows:
+                yield CanObservation(
+                    channel=cast(str, row["channel"]),
+                    can_id=integer(row["can_id"], "CAN ID"),
+                    is_extended_id=cast(bool, row["is_extended_id"]),
+                    dlc=integer(row["dlc"], "DLC"),
+                    payload=cast(bytes, row["payload"]),
+                    received_at_ns=integer(row["received_at_ns"], "receipt time"),
+                )
+
+    with closing(observations()) as stream:
+        yield ObserverStream(profile, receiver, end, stream)
 
 
 def _observer_projection(

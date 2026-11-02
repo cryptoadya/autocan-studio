@@ -183,6 +183,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     generate.add_argument("--max-bytes", type=int, default=256 * 1024 * 1024)
     verify_dataset = commands.add_parser("verify-dataset", help="verify a generated dataset series")
     verify_dataset.add_argument("directory", type=Path)
+    baseline = commands.add_parser(
+        "baseline", help="emit causal features, Tier 0 scores and alerts"
+    )
+    baseline.add_argument("source", type=Path, help="M7 selected-receiver dataset directory")
+    baseline.add_argument("--window", type=_time_ns, default=500_000_000, metavar="SECONDS")
+    baseline.add_argument("--heartbeat-periods", type=int, default=5)
+    baseline.add_argument("--rpm-derivative-threshold", type=float, default=20_000)
+    baseline.add_argument("--wheel-residual-threshold", type=float, default=5)
     for name, help_text in (
         ("trace-export", "export a verified JSONL run to a new Parquet bundle"),
         ("trace-import", "restore a verified Parquet bundle as a new JSONL run"),
@@ -196,6 +204,59 @@ def main(argv: Sequence[str] | None = None) -> int:
             command.add_argument("--receiver", default="KOMBI")
     args = parser.parse_args(argv)
     try:
+        if args.command == "baseline":
+            from dataclasses import asdict
+
+            from autocan.clock import SimulationClock
+            from autocan.features import (
+                DETECTOR_ID,
+                FEATURE_SCHEMA_VERSION,
+                BaselineDetector,
+                FeatureConfig,
+                FeaturePipeline,
+                FeatureWindow,
+                feature_record,
+                replay_observations,
+            )
+            from autocan.parquet import open_observer
+
+            config = FeatureConfig(
+                window_ns=args.window,
+                heartbeat_periods=args.heartbeat_periods,
+                rpm_derivative_threshold=args.rpm_derivative_threshold,
+                wheel_residual_threshold=args.wheel_residual_threshold,
+            )
+            detector = BaselineDetector(config)
+
+            def emit_window(window: FeatureWindow) -> None:
+                _write(feature_record(window), stream=sys.stdout)
+                for record in detector.evaluate(window):
+                    _write(record, stream=sys.stdout)
+
+            with open_observer(args.source) as source:
+                clock = SimulationClock()
+                pipeline = FeaturePipeline(
+                    clock,
+                    profile_id=source.profile_id,
+                    receiver_id=source.receiver_id,
+                    end_ns=source.end_ns,
+                    config=config,
+                    on_window=emit_window,
+                )
+                _write(
+                    {
+                        "kind": "baseline_config",
+                        "config": asdict(config),
+                        "profile_id": source.profile_id,
+                        "receiver_id": source.receiver_id,
+                        "end_ns": source.end_ns,
+                        "detector_id": DETECTOR_ID,
+                        "feature_schema_version": FEATURE_SCHEMA_VERSION,
+                    },
+                    stream=sys.stdout,
+                )
+                replay_observations(source.observations, clock, pipeline, end_ns=source.end_ns)
+            return 0
         if args.command in ("generate", "verify-dataset"):
             from autocan.factory import FactoryConfig, generate_factory, verify_factory
 
