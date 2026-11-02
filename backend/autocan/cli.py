@@ -263,6 +263,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     random_forest.add_argument("--output", type=Path, required=True)
     random_forest.add_argument("--seed", type=_seed, default=42)
     random_forest.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
+    ml_ood = commands.add_parser(
+        "evaluate-ml-ood", help="score frozen OOD domains with trusted saved forests; no fitting"
+    )
+    ml_ood.add_argument("prepared", type=Path)
+    ml_ood.add_argument("suite", type=Path)
+    for option in ("source", "reference", "experiment", "output"):
+        ml_ood.add_argument(f"--{option}", type=Path, required=True)
+    ml_ood.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
     for name, help_text in (
         ("trace-export", "export a verified JSONL run to a new Parquet bundle"),
         ("trace-import", "restore a verified Parquet bundle as a new JSONL run"),
@@ -276,6 +284,27 @@ def main(argv: Sequence[str] | None = None) -> int:
             command.add_argument("--receiver", default="KOMBI")
     args = parser.parse_args(argv)
     try:
+        if args.command == "evaluate-ml-ood":
+            from autocan.ml_ood import evaluate_ml_ood
+
+            evaluated = evaluate_ml_ood(
+                args.prepared,
+                args.suite,
+                args.output,
+                source=args.source,
+                reference=args.reference,
+                experiment=args.experiment,
+                max_bytes=args.max_bytes,
+            )
+            _write(
+                {
+                    "status": evaluated["status"],
+                    "path": str(args.output),
+                    "semantic_sha256": evaluated["semantic_sha256"],
+                },
+                stream=sys.stdout,
+            )
+            return 0
         if args.command in ("train-isolation-forest", "train-random-forest"):
             from autocan.ml_experiment import run_isolation_forest, run_random_forest
 

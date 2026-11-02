@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — M9 frozen forest OOD evaluation (sixth pass)
+
+- Add `evaluate-ml-ood` for trusted saved joint experiments, with bounded
+  integrity, source/split/feature lineage, environment and frozen policy checks.
+- Reuse both estimators, preprocessing and validation thresholds without fitting,
+  selecting new cutoffs or rescoring the ID test. Preserve separate OOD domains.
+- Compare five detectors through common window metrics, per-fault-type rows and
+  normal false-positive windows/contiguous alarm episodes per eligible hour.
+- Save aligned features/keys/truth/scores, frozen JSON audits and provenance;
+  verify unchanged inputs, repeatability, incompatible artifacts and quota cleanup.
+- Recover previous PR #17 models, freeze an authorized compatible OOD suite once,
+  and report RF's high fault F1 alongside substantial normal-family false alarms.
+
 ## Unreleased — M9 supervised RandomForest comparison (fifth pass)
 
 - Fit a fixed, seeded RandomForestClassifier on eligible labeled train windows

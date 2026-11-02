@@ -93,6 +93,8 @@ These are software-regression results on one synthetic mode with only 30
 positive test windows; they do not establish generalization to unseen faults,
 normal families or real CAN. Parameters were not adjusted using these results.
 
-OOD model evaluation, per-fault/event analysis, uncertainty/runtime studies,
-live inference and final M9 acceptance remain separate work. No completion of
-the whole milestone is claimed.
+The [sixth pass](ML_OOD.md) evaluates the saved joint experiment on frozen OOD
+domains without refitting or tuning, including per-fault window metrics and
+normal false alarms. Target-aware fault-event analysis, uncertainty/runtime
+studies, live inference and final M9 acceptance remain separate work. No
+completion of the whole milestone is claimed.

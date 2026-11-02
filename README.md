@@ -40,6 +40,9 @@ against those same rules/splits after freezing the model and threshold.
 The [RandomForestClassifier comparison](docs/RANDOM_FOREST.md) fits labeled train
 windows with train-only class weights and reports both forests plus the rules,
 with independent validation-only thresholds and held-out test scoring.
+The [frozen model OOD evaluation](docs/ML_OOD.md) reuses saved models,
+preprocessing and thresholds on separate unseen-fault and unseen-normal sets,
+reporting window metrics and normal false alarms without refitting or tuning.
 
 ## Run the dashboard
 

@@ -229,5 +229,9 @@ See [v0.1 acceptance](V0_1_ACCEPTANCE.md) for executed checks and limitations.
 - [RandomForestClassifier and joint comparison](RANDOM_FOREST.md) add supervised
   labeled-train fitting with train-only class weights, frozen all-train
   preprocessing and independent validation-only threshold selection.
-- OOD model evaluation, event/fault analysis and broader uncertainty/runtime
-  acceptance remain subsequent M9 work; this is not the whole milestone's completion.
+- [Frozen model OOD evaluation](ML_OOD.md) reuses both saved estimators,
+  preprocessing and validation cutoffs on separate unseen-fault/normal domains.
+  It reports common/per-fault-type window metrics and normal alarm episodes/hour,
+  including the recovered fixture's substantial normal-family false alarms.
+- Target-aware fault-event analysis and broader uncertainty/runtime acceptance
+  remain subsequent M9 work; this is not the whole milestone's completion.
