@@ -155,7 +155,8 @@ This pass prepares ID only. The [second M9 pass](WINDOW_EVALUATION.md) adds comm
 window metrics and a raw-feature rule adapter, with alignment/split/warm-up
 checks shared by future model scores. The [third pass](SAVED_WINDOW_RULES.md)
 loads and validates this saved contract and evaluates fixed rules on its splits.
-Future M9 work must publish rule/model comparisons on the same frozen split and
-fit the first estimators on the intended training subset. Model and
+The [fourth pass](ISOLATION_FOREST.md) fits the first IsolationForest and compares
+it with rules on the same frozen split. Additional estimators and broader
+validation remain future M9 work. Model and
 threshold selection stays on validation; final test/OOD must remain outside
 selection. Applying a frozen preprocessor to OOD will not permit refitting it.

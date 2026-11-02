@@ -246,6 +246,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     evaluate_rules.add_argument("--output", type=Path, required=True)
     evaluate_rules.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
+    isolation_forest = commands.add_parser(
+        "train-isolation-forest",
+        help="fit normal train windows, select threshold on validation, compare",
+    )
+    isolation_forest.add_argument("prepared", type=Path)
+    isolation_forest.add_argument("--source", type=Path, required=True)
+    isolation_forest.add_argument("--output", type=Path, required=True)
+    isolation_forest.add_argument("--seed", type=_seed, default=42)
+    isolation_forest.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
     for name, help_text in (
         ("trace-export", "export a verified JSONL run to a new Parquet bundle"),
         ("trace-import", "restore a verified Parquet bundle as a new JSONL run"),
@@ -259,6 +268,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             command.add_argument("--receiver", default="KOMBI")
     args = parser.parse_args(argv)
     try:
+        if args.command == "train-isolation-forest":
+            from autocan.ml_experiment import run_isolation_forest
+
+            experiment = run_isolation_forest(
+                args.prepared,
+                args.output,
+                source=args.source,
+                seed=args.seed,
+                max_bytes=args.max_bytes,
+            )
+            _write(
+                {
+                    "status": experiment["status"],
+                    "path": str(args.output),
+                    "semantic_sha256": experiment["semantic_sha256"],
+                },
+                stream=sys.stdout,
+            )
+            return 0
         if args.command == "evaluate-rules":
             from autocan.window_benchmark import evaluate_saved_rules
 

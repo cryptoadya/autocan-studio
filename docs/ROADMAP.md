@@ -223,5 +223,8 @@ See [v0.1 acceptance](V0_1_ACCEPTANCE.md) for executed checks and limitations.
 - [Saved artifact loading and rule CLI](SAVED_WINDOW_RULES.md) validate source,
   schemas, lineage, frozen transforms and coverage, then evaluate fixed rules
   on the saved preparation splits with reproducible metrics/reports.
-- Training, threshold/model selection and a reproducible published rule/model
-  comparison remain subsequent M9 work.
+- The [first IsolationForest experiment](ISOLATION_FOREST.md) fits eligible
+  normal train windows, selects its cutoff only on validation and compares
+  the frozen detector against rules on the same saved partitions.
+- RandomForest, OOD model evaluation and broader uncertainty/runtime acceptance
+  remain subsequent M9 work; this is not completion of the whole milestone.

@@ -1,7 +1,7 @@
 # AutoCAN Studio
 
 A local-first, synthetic CAN laboratory with a deterministic simulator and an
-independent anomaly-detection pipeline planned for later milestones.
+independent anomaly-detection pipeline.
 
 **M7 implemented and locally verified; released baseline: v0.1.0 (M0–M4).**
 Engine, ABS/DSC, Transmission, Body and KOMBI exchange eight synthetic messages
@@ -31,10 +31,12 @@ without tuning thresholds on OOD. [M9 preparation](docs/TRAINING_DATA.md) export
 aligned numeric windows and separate labels with mode/type group stratification
 and train-only imputation/scaling. The [common M9 window evaluator](docs/WINDOW_EVALUATION.md)
 adds precision/recall/F1, AP/PR and binary confusion counts through one score
-contract for rules and future models. Model training and broader validation
-remain later work. [Saved-window loading and `evaluate-rules`](docs/SAVED_WINDOW_RULES.md)
+contract for rules and models. [Saved-window loading and `evaluate-rules`](docs/SAVED_WINDOW_RULES.md)
 validate preparation artifacts against their original collection and evaluate
 the rules on the already saved splits without fitting or tuning.
+The [first IsolationForest experiment](docs/ISOLATION_FOREST.md) fits eligible
+normal train windows, selects its threshold only on validation and compares
+against those same rules/splits after freezing the model and threshold.
 
 ## Run the dashboard
 

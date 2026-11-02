@@ -451,3 +451,116 @@ def test_rules_cli_uses_saved_split_and_is_reproducible(
         == 1
     )
     assert not failed.exists()
+
+
+def test_isolation_forest_cli_fits_normal_train_selects_validation_and_compares_rules(
+    source: Path, prepared: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from autocan.cli import main
+
+    def no_preprocessing_fit(*args: object, **kwargs: object) -> None:
+        pytest.fail("model experiments must reuse frozen preprocessing")
+
+    monkeypatch.setattr("autocan.preprocessing.fit_training", no_preprocessing_fit)
+    monkeypatch.setattr("autocan.training_data.fit_training", no_preprocessing_fit)
+    first, second = tmp_path / "iforest-first", tmp_path / "iforest-second"
+    for target in (first, second):
+        assert (
+            main(
+                [
+                    "train-isolation-forest",
+                    str(prepared),
+                    "--source",
+                    str(source),
+                    "--output",
+                    str(target),
+                    "--seed",
+                    "42",
+                ]
+            )
+            == 0
+        )
+    for path in first.iterdir():
+        assert path.read_bytes() == (second / path.name).read_bytes()
+    assert (first / "split.json").read_bytes() == (prepared / "split.json").read_bytes()
+    assert (first / "preprocessing.json").read_bytes() == (
+        prepared / "preprocessing/normal_train.json"
+    ).read_bytes()
+    model = json.loads((first / "model.json").read_text())
+    frozen = json.loads((prepared / "preprocessing/normal_train.json").read_text())
+    assert model["fit_rows"] == frozen["fit_rows"]
+    assert model["fit_rows_sha256"] == frozen["fit_rows_sha256"]
+    selection = json.loads((first / "threshold.json").read_text())
+    assert selection["split"] == "validation" and selection["comparison"] == "ge"
+    scores = pq.read_table(first / "scores.parquet").to_pylist()
+    windows = pq.read_table(prepared / "windows.parquet").to_pylist()
+    labels = pq.read_table(prepared / "labels/windows.parquet").to_pylist()
+    assert len(scores) == 4 * len(windows)
+    assert not set(pq.read_schema(first / "scores.parquet").names) & {
+        "label",
+        "fault_ids",
+        "normal_run",
+    }
+    val = [w for w in windows if w["split"] == "validation" and w["eligible"]]
+    assert selection["windows"] == len(val)
+    model_rows = [r for r in scores if r["model_id"] == "isolation_forest"]
+    candidates = sorted({model_rows[w["row_index"]]["score"] for w in val})
+
+    def f1(threshold: float) -> float:
+        tp = sum(
+            labels[w["row_index"]]["label"] is True
+            and model_rows[w["row_index"]]["score"] >= threshold
+            for w in val
+        )
+        positives = sum(labels[w["row_index"]]["label"] is True for w in val)
+        predicted = sum(model_rows[w["row_index"]]["score"] >= threshold for w in val)
+        return float(2 * tp / (positives + predicted))
+
+    assert selection["threshold"] == max(candidates, key=lambda t: (f1(t), t))
+    metrics = json.loads((first / "metrics.json").read_text())
+    assert len(metrics["rows"]) == 12
+    from autocan.window_benchmark import evaluate_saved_rules
+
+    reference = tmp_path / "rule-reference"
+    evaluate_saved_rules(prepared, reference, source=source)
+    assert [r for r in metrics["rows"] if r["model_id"] != "isolation_forest"] == json.loads(
+        (reference / "metrics.json").read_text()
+    )["rows"]
+    for part in ("train", "validation", "test"):
+        selected = [r for r in metrics["rows"] if r["split"] == part]
+        assert len(selected) == 4
+        assert len({r["evaluated_windows"] for r in selected}) == 1
+        assert len({r["positive_windows"] for r in selected}) == 1
+    manifest = json.loads((first / "manifest.json").read_text())
+    assert manifest["models_trained"] == ["isolation_forest"]
+    assert manifest["ood_used"] is False
+    assert (
+        main(
+            [
+                "train-isolation-forest",
+                str(prepared),
+                "--source",
+                str(source),
+                "--output",
+                str(first),
+            ]
+        )
+        == 1
+    )
+    failed = tmp_path / "iforest-quota"
+    assert (
+        main(
+            [
+                "train-isolation-forest",
+                str(prepared),
+                "--source",
+                str(source),
+                "--output",
+                str(failed),
+                "--max-bytes",
+                "4096",
+            ]
+        )
+        == 1
+    )
+    assert not failed.exists()
