@@ -191,6 +191,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     baseline.add_argument("--heartbeat-periods", type=int, default=5)
     baseline.add_argument("--rpm-derivative-threshold", type=float, default=20_000)
     baseline.add_argument("--wheel-residual-threshold", type=float, default=5)
+    benchmark = commands.add_parser(
+        "benchmark", help="evaluate fixed Tier 0 rules on whole-run splits"
+    )
+    benchmark.add_argument("source", type=Path, help="verified M7 factory collection")
+    benchmark.add_argument("--output", type=Path, required=True)
+    partition = benchmark.add_mutually_exclusive_group()
+    partition.add_argument("--split-seed", type=_seed, default=42)
+    partition.add_argument("--split", type=Path)
+    benchmark.add_argument("--window", type=_time_ns, default=500_000_000, metavar="SECONDS")
+    benchmark.add_argument("--heartbeat-periods", type=int, default=5)
+    benchmark.add_argument("--rpm-derivative-threshold", type=float, default=20_000)
+    benchmark.add_argument("--wheel-residual-threshold", type=float, default=5)
+    benchmark.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
     for name, help_text in (
         ("trace-export", "export a verified JSONL run to a new Parquet bundle"),
         ("trace-import", "restore a verified Parquet bundle as a new JSONL run"),
@@ -204,6 +217,32 @@ def main(argv: Sequence[str] | None = None) -> int:
             command.add_argument("--receiver", default="KOMBI")
     args = parser.parse_args(argv)
     try:
+        if args.command == "benchmark":
+            from autocan.benchmark import run_benchmark
+            from autocan.features import FeatureConfig
+
+            benchmark_meta = run_benchmark(
+                args.source,
+                args.output,
+                config=FeatureConfig(
+                    window_ns=args.window,
+                    heartbeat_periods=args.heartbeat_periods,
+                    rpm_derivative_threshold=args.rpm_derivative_threshold,
+                    wheel_residual_threshold=args.wheel_residual_threshold,
+                ),
+                split_seed=args.split_seed,
+                split_path=args.split,
+                max_bytes=args.max_bytes,
+            )
+            _write(
+                {
+                    "status": benchmark_meta["status"],
+                    "path": str(args.output),
+                    "semantic_sha256": benchmark_meta["semantic_sha256"],
+                },
+                stream=sys.stdout,
+            )
+            return 0
         if args.command == "baseline":
             from dataclasses import asdict
 

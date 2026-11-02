@@ -2,8 +2,9 @@
 
 This headless pass consumes an M7 selected-receiver dataset. It produces causal
 feature windows, rule scores and grouped alert transitions as JSONL. It does not
-evaluate detection quality: run splits, episode matching, false alarms/hour,
-fixed benchmarks and OOD evaluation remain the next M8 pass. No ML is included.
+evaluate detection quality by itself: the [second M8 pass](BENCHMARK.md) adds
+run/group splits, episode matching, false alarms/hour and a fixed benchmark.
+OOD evaluation and ML remain later work.
 
 ## Run
 
