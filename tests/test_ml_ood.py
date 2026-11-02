@@ -14,35 +14,8 @@ from autocan.training_artifacts import LoadedTrainingData, load_training_data
 
 
 @pytest.fixture(scope="module")
-def frozen(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    from autocan.benchmark import run_benchmark
-    from autocan.factory import FactoryConfig, generate_factory
-    from autocan.features import FeatureConfig
-    from autocan.ml_experiment import run_random_forest
-    from autocan.ood import generate_ood
-    from autocan.training_data import prepare_training_data
-
-    root = tmp_path_factory.mktemp("frozen-ml-ood")
-    generate_factory(
-        FactoryConfig(
-            runs=12,
-            seed=12,
-            modes=("acceleration",),
-            fault_runs=9,
-            fault_types=("ecu_offline", "signal_spike", "cross_signal_inconsistency"),
-            min_duration_ns=8_000_000_000,
-            max_duration_ns=8_000_000_000,
-        ),
-        root / "source",
-    )
-    config = FeatureConfig(window_ns=100_000_000)
-    prepare_training_data(root / "source", root / "prepared", config=config)
-    run_random_forest(root / "prepared", root / "experiment", source=root / "source")
-    run_benchmark(root / "source", root / "reference", config=config)
-    generate_ood(
-        root / "source", root / "reference", root / "suite", seed=19, fault_runs=2, normal_runs=2
-    )
-    return root
+def frozen(ml_frozen: Path) -> Path:
+    return ml_frozen
 
 
 def arguments(root: Path, target: Path) -> list[str]:
@@ -67,19 +40,8 @@ def saved_data(frozen: Path) -> LoadedTrainingData:
 
 
 @pytest.fixture(scope="module")
-def saved_ood(frozen: Path, tmp_path_factory: pytest.TempPathFactory) -> Path:
-    from autocan.ml_ood import evaluate_ml_ood
-
-    target = tmp_path_factory.mktemp("saved-event-scores") / "ood"
-    evaluate_ml_ood(
-        frozen / "prepared",
-        frozen / "suite",
-        target,
-        source=frozen / "source",
-        reference=frozen / "reference",
-        experiment=frozen / "experiment",
-    )
-    return target
+def saved_ood(ml_ood_scores: Path) -> Path:
+    return ml_ood_scores
 
 
 def event_arguments(root: Path, saved_ood: Path, target: Path) -> list[str]:
@@ -203,6 +165,7 @@ def test_event_cli_rejects_ood_binding_or_rehashed_window_changes_without_public
 
 def test_saved_predictions_thresholds_normal_exposure_and_repeatability(
     frozen: Path,
+    saved_ood: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -222,9 +185,8 @@ def test_saved_predictions_thresholds_normal_exposure_and_repeatability(
     ):
         monkeypatch.setattr(name, forbidden)
     before = {p: sha256(p.read_bytes()).hexdigest() for p in frozen.rglob("*") if p.is_file()}
-    first, second = tmp_path / "first", tmp_path / "second"
-    for target in (first, second):
-        assert main(arguments(frozen, target)) == 0
+    first, second = saved_ood, tmp_path / "second"
+    assert main(arguments(frozen, second)) == 0
     assert all(sha256(p.read_bytes()).hexdigest() == h for p, h in before.items())
     for p in first.rglob("*"):
         if p.is_file():

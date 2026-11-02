@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — Reuse immutable M9 test fixtures
+
+- Share session-local ID data, prepared windows, rules/models and OOD score
+  artifacts across ML/OOD and preparation tests, with final immutability checks.
+- Retain independent second CLI runs for reproducibility and isolated copies for
+  corruption cases. Keep all scenarios, assertions and full production validators.
+- Guard shared producer calls against preprocessing refits and, for scoring,
+  estimator fitting or threshold selection. No persistent cross-run cache is used.
+
 ## Unreleased — M9 event metrics from saved scores (seventh pass)
 
 - Add `evaluate-events` for both saved ID and OOD score streams, validating

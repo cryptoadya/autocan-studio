@@ -58,34 +58,18 @@ def test_stratified_split_guarantees_mode_type_coverage_and_duplicate_groups() -
 
 
 @pytest.fixture(scope="module")
-def source(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    from autocan.factory import FactoryConfig, generate_factory
-
-    root = tmp_path_factory.mktemp("ml-prep-source") / "collection"
-    generate_factory(
-        FactoryConfig(
-            runs=12,
-            seed=12,
-            modes=("acceleration",),
-            fault_runs=9,
-            fault_types=("ecu_offline", "signal_spike", "cross_signal_inconsistency"),
-            min_duration_ns=8_000_000_000,
-            max_duration_ns=8_000_000_000,
-        ),
-        root,
-    )
-    return root
+def source(ml_source: Path) -> Path:
+    return ml_source
 
 
 def test_prepared_tables_and_train_only_states_are_reproducible(
-    source: Path, tmp_path: Path
+    source: Path, ml_prepared_default: Path, tmp_path: Path
 ) -> None:
     from autocan.cli import main
     from autocan.preprocessing import Preprocessor
 
-    first, second = tmp_path / "first", tmp_path / "second"
-    for path in (first, second):
-        assert main(["prepare-ml", str(source), "--output", str(path)]) == 0
+    first, second = ml_prepared_default, tmp_path / "second"
+    assert main(["prepare-ml", str(source), "--output", str(second)]) == 0
     for name in (
         "features.parquet",
         "windows.parquet",
@@ -134,13 +118,9 @@ def test_prepared_tables_and_train_only_states_are_reproducible(
 
 
 def test_warmup_windows_are_retained_with_missing_labels_and_excluded_from_fit(
-    source: Path, tmp_path: Path
+    prepared: Path,
 ) -> None:
-    from autocan.features import FeatureConfig
-    from autocan.training_data import prepare_training_data
-
-    output = tmp_path / "short-windows"
-    prepare_training_data(source, output, config=FeatureConfig(window_ns=100_000_000))
+    output = prepared
     windows = pq.read_table(output / "windows.parquet").to_pylist()
     labels = pq.read_table(output / "labels/windows.parquet").to_pylist()
     assert len(windows) == 960
@@ -177,10 +157,9 @@ def test_failed_quota_and_existing_output_preserve_data(source: Path, tmp_path: 
 
 
 def test_common_window_evaluator_scores_rules_on_prepared_partitions(
-    source: Path, tmp_path: Path
+    prepared: Path,
 ) -> None:
     from autocan.features import FeatureConfig
-    from autocan.training_data import prepare_training_data
     from autocan.window_evaluation import (
         WindowKey,
         WindowScore,
@@ -189,9 +168,8 @@ def test_common_window_evaluator_scores_rules_on_prepared_partitions(
         evaluate_windows,
     )
 
-    output = tmp_path / "evaluation-input"
+    output = prepared
     config = FeatureConfig(window_ns=100_000_000)
-    prepare_training_data(source, output, config=config)
     features = pq.read_table(output / "features.parquet").to_pylist()
     windows = pq.read_table(output / "windows.parquet").to_pylist()
     labels = pq.read_table(output / "labels/windows.parquet").to_pylist()
@@ -226,13 +204,8 @@ def test_common_window_evaluator_scores_rules_on_prepared_partitions(
 
 
 @pytest.fixture(scope="module")
-def prepared(source: Path, tmp_path_factory: pytest.TempPathFactory) -> Path:
-    from autocan.features import FeatureConfig
-    from autocan.training_data import prepare_training_data
-
-    root = tmp_path_factory.mktemp("saved-windows") / "prepared"
-    prepare_training_data(source, root, config=FeatureConfig(window_ns=100_000_000))
-    return root
+def prepared(ml_prepared: Path) -> Path:
+    return ml_prepared
 
 
 def test_loader_validates_existing_export_without_refitting(
@@ -408,18 +381,15 @@ def test_loader_validates_rehashed_json_contracts(
 
 
 def test_rules_cli_uses_saved_split_and_is_reproducible(
-    source: Path, prepared: Path, tmp_path: Path
+    source: Path, prepared: Path, ml_rules: Path, tmp_path: Path
 ) -> None:
     from autocan.cli import main
 
-    first, second = tmp_path / "first", tmp_path / "second"
-    for target in (first, second):
-        assert (
-            main(
-                ["evaluate-rules", str(prepared), "--source", str(source), "--output", str(target)]
-            )
-            == 0
-        )
+    first, second = ml_rules, tmp_path / "second"
+    assert (
+        main(["evaluate-rules", str(prepared), "--source", str(source), "--output", str(second)])
+        == 0
+    )
     for name in ("manifest.json", "metrics.json", "report.md", "split.json"):
         assert (first / name).read_bytes() == (second / name).read_bytes()
     assert (first / "split.json").read_bytes() == (prepared / "split.json").read_bytes()
@@ -454,7 +424,12 @@ def test_rules_cli_uses_saved_split_and_is_reproducible(
 
 
 def test_isolation_forest_cli_fits_normal_train_selects_validation_and_compares_rules(
-    source: Path, prepared: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    source: Path,
+    prepared: Path,
+    ml_iforest: Path,
+    ml_rules: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from autocan.cli import main
 
@@ -463,23 +438,22 @@ def test_isolation_forest_cli_fits_normal_train_selects_validation_and_compares_
 
     monkeypatch.setattr("autocan.preprocessing.fit_training", no_preprocessing_fit)
     monkeypatch.setattr("autocan.training_data.fit_training", no_preprocessing_fit)
-    first, second = tmp_path / "iforest-first", tmp_path / "iforest-second"
-    for target in (first, second):
-        assert (
-            main(
-                [
-                    "train-isolation-forest",
-                    str(prepared),
-                    "--source",
-                    str(source),
-                    "--output",
-                    str(target),
-                    "--seed",
-                    "42",
-                ]
-            )
-            == 0
+    first, second = ml_iforest, tmp_path / "iforest-second"
+    assert (
+        main(
+            [
+                "train-isolation-forest",
+                str(prepared),
+                "--source",
+                str(source),
+                "--output",
+                str(second),
+                "--seed",
+                "42",
+            ]
         )
+        == 0
+    )
     for path in first.iterdir():
         assert path.read_bytes() == (second / path.name).read_bytes()
     assert (first / "split.json").read_bytes() == (prepared / "split.json").read_bytes()
@@ -519,10 +493,7 @@ def test_isolation_forest_cli_fits_normal_train_selects_validation_and_compares_
     assert selection["threshold"] == max(candidates, key=lambda t: (f1(t), t))
     metrics = json.loads((first / "metrics.json").read_text())
     assert len(metrics["rows"]) == 12
-    from autocan.window_benchmark import evaluate_saved_rules
-
-    reference = tmp_path / "rule-reference"
-    evaluate_saved_rules(prepared, reference, source=source)
+    reference = ml_rules
     assert [r for r in metrics["rows"] if r["model_id"] != "isolation_forest"] == json.loads(
         (reference / "metrics.json").read_text()
     )["rows"]
@@ -567,7 +538,12 @@ def test_isolation_forest_cli_fits_normal_train_selects_validation_and_compares_
 
 
 def test_random_forest_cli_compares_five_detectors_with_validation_only_thresholds(
-    source: Path, prepared: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    source: Path,
+    prepared: Path,
+    ml_joint: Path,
+    ml_iforest: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from hashlib import sha256
 
@@ -579,23 +555,22 @@ def test_random_forest_cli_compares_five_detectors_with_validation_only_threshol
 
     monkeypatch.setattr("autocan.preprocessing.fit_training", no_preprocessing_fit)
     monkeypatch.setattr("autocan.training_data.fit_training", no_preprocessing_fit)
-    first, second = tmp_path / "rf-first", tmp_path / "rf-second"
-    for target in (first, second):
-        assert (
-            main(
-                [
-                    "train-random-forest",
-                    str(prepared),
-                    "--source",
-                    str(source),
-                    "--output",
-                    str(target),
-                    "--seed",
-                    "42",
-                ]
-            )
-            == 0
+    first, second = ml_joint, tmp_path / "rf-second"
+    assert (
+        main(
+            [
+                "train-random-forest",
+                str(prepared),
+                "--source",
+                str(source),
+                "--output",
+                str(second),
+                "--seed",
+                "42",
+            ]
         )
+        == 0
+    )
     for path in first.rglob("*"):
         if path.is_file():
             assert path.read_bytes() == (second / path.relative_to(first)).read_bytes()
@@ -648,20 +623,7 @@ def test_random_forest_cli_compares_five_detectors_with_validation_only_threshol
     metrics = json.loads((first / "metrics.json").read_text())
     assert len(metrics["rows"]) == 15
     assert metrics["format"] == "autocan-forest-comparison-metrics"
-    reference = tmp_path / "iforest-reference"
-    assert (
-        main(
-            [
-                "train-isolation-forest",
-                str(prepared),
-                "--source",
-                str(source),
-                "--output",
-                str(reference),
-            ]
-        )
-        == 0
-    )
+    reference = ml_iforest
     assert [r for r in metrics["rows"] if r["model_id"] != "random_forest"] == json.loads(
         (reference / "metrics.json").read_text()
     )["rows"]
