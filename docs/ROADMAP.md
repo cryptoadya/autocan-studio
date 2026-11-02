@@ -233,5 +233,8 @@ See [v0.1 acceptance](V0_1_ACCEPTANCE.md) for executed checks and limitations.
   preprocessing and validation cutoffs on separate unseen-fault/normal domains.
   It reports common/per-fault-type window metrics and normal alarm episodes/hour,
   including the recovered fixture's substantial normal-family false alarms.
-- Target-aware fault-event analysis and broader uncertainty/runtime acceptance
-  remain subsequent M9 work; this is not the whole milestone's completion.
+- [Saved-score event evaluation](EVENT_EVALUATION.md) adds common temporal
+  one-to-one fault detection/latency by type, with explicit censoring, using
+  the frozen ID/OOD decisions without model loading or new inference.
+- Broader uncertainty/runtime acceptance remains subsequent M9 work; this is
+  not the whole milestone's completion. Global scores do not claim CAN localisation.

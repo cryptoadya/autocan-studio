@@ -39,8 +39,17 @@ class FrozenExperiment:
     thresholds: dict[str, float]
 
 
-def load_frozen_experiment(root: Path, data: LoadedTrainingData) -> FrozenExperiment:
-    """Validate all JSON/inventories before deserializing either trusted estimator."""
+@dataclass(frozen=True, slots=True)
+class FrozenExperimentMetadata:
+    manifest: dict[str, object]
+    metadata: dict[str, dict[str, object]]
+    preprocessors: dict[str, Preprocessor]
+    thresholds: dict[str, float]
+    seed: int
+
+
+def inspect_frozen_experiment(root: Path, data: LoadedTrainingData) -> FrozenExperimentMetadata:
+    """Validate saved metadata/inventories without deserializing or scoring models."""
     meta = _read_json(_path(root, "manifest.json"), MAX_BUNDLE_MANIFEST_BYTES)
     expected = {
         "format": "autocan-random-forest-experiment",
@@ -174,6 +183,13 @@ def load_frozen_experiment(root: Path, data: LoadedTrainingData) -> FrozenExperi
         thresholds[name] = number(
             threshold.get("threshold"), "saved threshold", minimum=0, maximum=1
         )
+    return FrozenExperimentMetadata(meta, metadata, states, thresholds, seed)
+
+
+def load_frozen_experiment(root: Path, data: LoadedTrainingData) -> FrozenExperiment:
+    """Validate all JSON/inventories before deserializing either trusted estimator."""
+    frozen = inspect_frozen_experiment(root, data)
+    metadata, states, seed = frozen.metadata, frozen.preprocessors, frozen.seed
     models: dict[str, FittedModel] = {}
     for name in MODEL_IDS:
         model, state = metadata[name], states[name]
@@ -205,4 +221,4 @@ def load_frozen_experiment(root: Path, data: LoadedTrainingData) -> FrozenExperi
                 integer(counts.get("anomaly"), "positive train rows", minimum=1),
                 str(model["label_rows_sha256"]),
             )
-    return FrozenExperiment(meta, models, thresholds)
+    return FrozenExperiment(frozen.manifest, models, frozen.thresholds)

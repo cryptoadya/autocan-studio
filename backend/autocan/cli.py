@@ -271,6 +271,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     for option in ("source", "reference", "experiment", "output"):
         ml_ood.add_argument(f"--{option}", type=Path, required=True)
     ml_ood.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
+    events = commands.add_parser(
+        "evaluate-events", help="evaluate fault episodes using saved ID/OOD scores; no inference"
+    )
+    events.add_argument("prepared", type=Path)
+    for option in ("source", "experiment", "ood-results", "suite", "reference", "output"):
+        events.add_argument(f"--{option}", type=Path, required=True)
+    events.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
     for name, help_text in (
         ("trace-export", "export a verified JSONL run to a new Parquet bundle"),
         ("trace-import", "restore a verified Parquet bundle as a new JSONL run"),
@@ -284,6 +291,28 @@ def main(argv: Sequence[str] | None = None) -> int:
             command.add_argument("--receiver", default="KOMBI")
     args = parser.parse_args(argv)
     try:
+        if args.command == "evaluate-events":
+            from autocan.event_benchmark import evaluate_saved_events
+
+            evaluated = evaluate_saved_events(
+                args.prepared,
+                args.output,
+                source=args.source,
+                experiment=args.experiment,
+                ood_results=args.ood_results,
+                suite=args.suite,
+                reference=args.reference,
+                max_bytes=args.max_bytes,
+            )
+            _write(
+                {
+                    "status": evaluated["status"],
+                    "path": str(args.output),
+                    "semantic_sha256": evaluated["semantic_sha256"],
+                },
+                stream=sys.stdout,
+            )
+            return 0
         if args.command == "evaluate-ml-ood":
             from autocan.ml_ood import evaluate_ml_ood
 

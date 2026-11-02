@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — M9 event metrics from saved scores (seventh pass)
+
+- Add `evaluate-events` for both saved ID and OOD score streams, validating
+  lineage, bounded tables, window/model alignment and frozen cutoff decisions.
+- Share metadata-only experiment validation without deserializing estimators;
+  never fit, recompute features/scores or select settings on test/OOD.
+- Compare all five global detectors with fixed temporal one-to-one event matching,
+  window-end onsets, one-window grace, original-start latency and explicit censoring.
+- Publish split/domain and per-fault detection rate/mean/p50/p95 latency, normal
+  false alarms, per-run match evidence and input/code/environment provenance.
+- Report preserved-fixture RF OOD detection of 6/6 at p50/p95 60/140 ms alongside
+  its unchanged normal false alarms; retain the small-sample/global-alarm limits.
+
 ## Unreleased — M9 frozen forest OOD evaluation (sixth pass)
 
 - Add `evaluate-ml-ood` for trusted saved joint experiments, with bounded

@@ -116,9 +116,10 @@ come with low fault recall at their fixed operating points.
 | signal_stuck | 16 | 0.125 | 1 |
 
 These are synthetic software-fixture observations, not broad generalization or
-real-CAN quality. Parameters were not changed in response. Target-aware fault
-event matching/latency, uncertainty and runtime studies, live inference and
-final M9 acceptance remain separate work.
+real-CAN quality. Parameters were not changed in response. The
+[seventh pass](EVENT_EVALUATION.md) adds common temporal event matching/latency
+from these saved global scores. It does not reconstruct CAN-target attribution.
+Uncertainty/runtime studies, live inference and final M9 acceptance remain separate work.
 
 ### Exact local inputs and reproduction
 
