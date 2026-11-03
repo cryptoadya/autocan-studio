@@ -119,7 +119,9 @@ These are synthetic software-fixture observations, not broad generalization or
 real-CAN quality. Parameters were not changed in response. The
 [seventh pass](EVENT_EVALUATION.md) adds common temporal event matching/latency
 from these saved global scores. It does not reconstruct CAN-target attribution.
-Uncertainty/runtime studies, live inference and final M9 acceptance remain separate work.
+[Run-bootstrap uncertainty](BOOTSTRAP.md), [frozen runtime measurements](INFERENCE_BENCHMARK.md)
+and [scoped frozen-artifact acceptance](M9_ACCEPTANCE.md) provide subsequent evidence.
+Live inference and broader generalization remain separate work.
 
 ### Exact local inputs and reproduction
 

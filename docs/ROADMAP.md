@@ -239,5 +239,12 @@ See [v0.1 acceptance](V0_1_ACCEPTANCE.md) for executed checks and limitations.
 - [Run-bootstrap confidence intervals](BOOTSTRAP.md) add paired whole-run
   percentile intervals for fixed-score window/event metrics, including per-type
   event detection/latency and normal false alarms, without model loading or tuning.
-- Runtime/RSS acceptance remains subsequent M9 work; this is
-  not the whole milestone's completion. Global scores do not claim CAN localisation.
+- [Frozen inference performance](INFERENCE_BENCHMARK.md) measures batches 1/256,
+  preprocessing/scoring versus estimator-only scopes, and isolated worker RSS,
+  with actual M1 observations separate from CI and an optional worker deadline.
+- [Frozen-artifact acceptance](M9_ACCEPTANCE.md) verifies the designated lineage,
+  independently repeats saved-score event/bootstrap evaluation, checks archived
+  metrics and runtime identity, and publishes one consolidated evidence report.
+- Acceptance is limited to the frozen synthetic experiment pipeline. Broader
+  generalization remains unestablished; normal OOD failures are retained.
+  Live inference, UI and affected-message attribution belong to M10.
