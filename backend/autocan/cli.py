@@ -278,6 +278,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     for option in ("source", "experiment", "ood-results", "suite", "reference", "output"):
         events.add_argument(f"--{option}", type=Path, required=True)
     events.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
+    bootstrap = commands.add_parser(
+        "bootstrap-metrics", help="run-bootstrap CIs from saved ID/OOD scores; no inference"
+    )
+    bootstrap.add_argument("prepared", type=Path)
+    for option in ("source", "experiment", "ood-results", "suite", "reference", "output"):
+        bootstrap.add_argument(f"--{option}", type=Path, required=True)
+    bootstrap.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
+    bootstrap.add_argument("--replicates", type=int, default=2000)
+    bootstrap.add_argument("--seed", type=_seed, default=42)
     for name, help_text in (
         ("trace-export", "export a verified JSONL run to a new Parquet bundle"),
         ("trace-import", "restore a verified Parquet bundle as a new JSONL run"),
@@ -291,6 +300,30 @@ def main(argv: Sequence[str] | None = None) -> int:
             command.add_argument("--receiver", default="KOMBI")
     args = parser.parse_args(argv)
     try:
+        if args.command == "bootstrap-metrics":
+            from autocan.bootstrap_benchmark import bootstrap_saved_metrics
+
+            evaluated = bootstrap_saved_metrics(
+                args.prepared,
+                args.output,
+                source=args.source,
+                experiment=args.experiment,
+                ood_results=args.ood_results,
+                suite=args.suite,
+                reference=args.reference,
+                max_bytes=args.max_bytes,
+                replicates=args.replicates,
+                seed=args.seed,
+            )
+            _write(
+                {
+                    "status": evaluated["status"],
+                    "path": str(args.output),
+                    "semantic_sha256": evaluated["semantic_sha256"],
+                },
+                stream=sys.stdout,
+            )
+            return 0
         if args.command == "evaluate-events":
             from autocan.event_benchmark import evaluate_saved_events
 

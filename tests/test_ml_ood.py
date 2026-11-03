@@ -394,3 +394,103 @@ def test_reference_and_feature_window_mismatch_fail_before_model_loading(
         main(arguments(frozen, tmp_path / "quota") + ["--max-bytes", str(64 * 1024 * 1024 + 1)])
         == 1
     )
+
+
+def test_bootstrap_cli_preserves_point_metrics_and_never_loads_or_fits_models(
+    frozen: Path,
+    saved_ood: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sklearn.ensemble import IsolationForest, RandomForestClassifier
+
+    from autocan.cli import main
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("bootstrap may only resample saved scores")
+
+    for name in (
+        "pickle.loads",
+        "pickle.load",
+        "autocan.model_artifacts.load_frozen_experiment",
+        "autocan.isolation_forest.FittedForest.score",
+        "autocan.random_forest.FittedRandomForest.score",
+        "autocan.preprocessing.fit_training",
+        "autocan.training_data.fit_training",
+        "autocan.isolation_forest.choose_validation_threshold",
+        "autocan.ml_experiment.choose_validation_threshold",
+        "autocan.features.replay_observations",
+    ):
+        monkeypatch.setattr(name, forbidden)
+    monkeypatch.setattr(IsolationForest, "fit", forbidden)
+    monkeypatch.setattr(RandomForestClassifier, "fit", forbidden)
+    first, second = tmp_path / "bootstrap", tmp_path / "bootstrap-again"
+
+    def args(target: Path) -> list[str]:
+        return [
+            "bootstrap-metrics",
+            *event_arguments(frozen, saved_ood, target)[1:],
+            "--replicates",
+            "30",
+            "--seed",
+            "42",
+        ]
+
+    assert main(args(first)) == 0
+    assert main(args(second)) == 0
+    for path in first.iterdir():
+        assert path.read_bytes() == (second / path.name).read_bytes()
+    metrics = json.loads((first / "metrics.json").read_text())
+    assert len(metrics["rows"]) == 25
+    id_metrics = json.loads((frozen / "experiment/metrics.json").read_text())["rows"]
+    ood_metrics = json.loads((saved_ood / "metrics.json").read_text())["rows"]
+    expected = {(r["split"], r["model_id"]): r for r in [*id_metrics, *ood_metrics]}
+    events = tmp_path / "events-point"
+    assert main(event_arguments(frozen, saved_ood, events)) == 0
+    expected_events = {
+        (r["split"], r["model_id"]): r
+        for r in json.loads((events / "metrics.json").read_text())["rows"]
+    }
+    for row in metrics["rows"]:
+        point = expected[row["split"], row["model_id"]]
+        for metric in ("precision", "recall", "f1", "average_precision"):
+            assert row["window"][metric]["estimate"] == pytest.approx(point[metric])
+        event = expected_events[row["split"], row["model_id"]]
+        for metric in ("detection_rate", "false_alarms_per_hour", "normal_duration_ns"):
+            assert row["event"][metric]["estimate"] == pytest.approx(event[metric])
+        for statistic in ("mean", "p50", "p95"):
+            assert row["event"][f"latency_{statistic}_ns"]["estimate"] == pytest.approx(
+                event["detection_latency_ns"][statistic]
+            )
+    manifest = json.loads((first / "manifest.json").read_text())
+    assert manifest["models_trained"] == manifest["thresholds_selected"] == []
+    assert manifest["scores_computed"] == 0
+    assert manifest["bootstrap_seed"] == 42 and manifest["replicates"] == 30
+    assert main(args(first)) == 1
+    assert main(args(tmp_path / "quota") + ["--max-bytes", "4096"]) == 1
+    assert not (tmp_path / "quota").exists()
+    assert main(args(tmp_path / "bad-count") + ["--replicates", "10001"]) == 1
+    assert not (tmp_path / "bad-count").exists()
+
+
+@pytest.mark.parametrize("damage", ["binding", "scores"])
+def test_bootstrap_rejects_corrupted_inputs_before_publishing(
+    frozen: Path,
+    saved_ood: Path,
+    tmp_path: Path,
+    damage: str,
+) -> None:
+    from autocan.cli import main
+
+    root = copytree(saved_ood, tmp_path / "ood")
+    if damage == "binding":
+        path = root / "manifest.json"
+        manifest = json.loads(path.read_text())
+        manifest["experiment_manifest_sha256"] = "0" * 64
+        path.write_text(json.dumps(manifest))
+    else:
+        path = root / "scores.parquet"
+        path.write_bytes(path.read_bytes()[:-1])
+    args = event_arguments(frozen, root, tmp_path / "invalid")
+    assert main(["bootstrap-metrics", *args[1:], "--replicates", "10"]) == 1
+    assert not (tmp_path / "invalid").exists()

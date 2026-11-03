@@ -236,5 +236,8 @@ See [v0.1 acceptance](V0_1_ACCEPTANCE.md) for executed checks and limitations.
 - [Saved-score event evaluation](EVENT_EVALUATION.md) adds common temporal
   one-to-one fault detection/latency by type, with explicit censoring, using
   the frozen ID/OOD decisions without model loading or new inference.
-- Broader uncertainty/runtime acceptance remains subsequent M9 work; this is
+- [Run-bootstrap confidence intervals](BOOTSTRAP.md) add paired whole-run
+  percentile intervals for fixed-score window/event metrics, including per-type
+  event detection/latency and normal false alarms, without model loading or tuning.
+- Runtime/RSS acceptance remains subsequent M9 work; this is
   not the whole milestone's completion. Global scores do not claim CAN localisation.
