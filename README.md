@@ -49,6 +49,9 @@ scores, with no model loading, new inference or test/OOD tuning.
 [Run-bootstrap confidence intervals](docs/BOOTSTRAP.md) quantify window/event
 metric uncertainty by resampling whole runs within each saved split/domain,
 with paired detector draws and explicit undefined-replicate counts.
+The [frozen inference benchmark](docs/INFERENCE_BENCHMARK.md) measures saved
+rule/forest scoring latency, throughput and isolated process RSS without fitting
+or tuning, with separate batch sizes and estimator-only timings.
 
 ## Run the dashboard
 
