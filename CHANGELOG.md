@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — M9 run-bootstrap confidence intervals (eighth pass)
+
+- Add `bootstrap-metrics` on validated saved ID/OOD scores for all three rules
+  and both forests, with paired whole-run sampling within each fixed partition.
+- Publish pooled window precision/recall/F1/AP/confusion and event detection,
+  conditional latency, per-fault events and normal FA/hour percentile intervals.
+- Record fixed 95% quantiles, bootstrap seed, run rosters/draw hashes and
+  undefined-replicate counts; suppress intervals with insufficient runs.
+- Share bounded score/event reading and preserve frozen cutoffs, input integrity
+  and point metrics without model loading, inference, fitting or test/OOD tuning.
+
 ## Unreleased — Reuse immutable M9 test fixtures
 
 - Share session-local ID data, prepared windows, rules/models and OOD score

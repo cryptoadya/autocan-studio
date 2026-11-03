@@ -1,75 +1,19 @@
 """Evaluate saved ID/OOD window decisions as temporal fault/alert episodes."""
 
 from collections import Counter
-from contextlib import ExitStack, closing
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from hashlib import sha256
 from importlib.resources import files
 from pathlib import Path
 
-from autocan.benchmark import _fault_episodes
 from autocan.evaluation import SPLITS, summarize
-from autocan.factory import FactoryManifest, RunSummary
-from autocan.model_artifacts import inspect_frozen_experiment
-from autocan.ood import DOMAINS, verify_ood
-from autocan.parquet import _file_hash, _finish, _new_output
-from autocan.score_artifacts import (
-    inspect_saved_ood,
-    iter_saved_decisions,
-    iter_saved_ood_keys,
-    saved_policies,
-)
-from autocan.score_events import (
-    EVENT_EVALUATOR_VERSION,
-    MATCHING_POLICY,
-    RunEvents,
-    evaluate_score_events,
-)
+from autocan.ood import DOMAINS
+from autocan.parquet import _finish, _new_output
+from autocan.saved_evaluation import load_saved_evaluation
+from autocan.score_events import EVENT_EVALUATOR_VERSION, MATCHING_POLICY, RunEvents
 from autocan.traces import TraceError, _git_provenance, _packages
-from autocan.training_artifacts import _table_rows, load_training_data
-from autocan.training_data import LABEL_SCHEMA, MAX_ROWS, window_label
 from autocan.validation import canonical_bytes, integer, object_value
 from autocan.window_benchmark import DEFAULT_OUTPUT_BYTES, MAX_OUTPUT_BYTES
-from autocan.window_evaluation import WindowKey
-
-
-@dataclass(frozen=True, slots=True)
-class SavedRun:
-    root: Path
-    summary: RunSummary
-    split: str
-    keys: list[WindowKey]
-
-
-def _runs(
-    root: Path,
-    factory: FactoryManifest,
-    membership: dict[int, str],
-    *,
-    window_ns: int,
-    warmup_ns: float,
-    offset: int = 0,
-) -> list[SavedRun]:
-    runs = []
-    for run in factory["runs"]:
-        count = run["duration_ns"] // window_ns
-        if offset + count > MAX_ROWS:
-            raise TraceError("saved event window quota exceeded")
-        part = membership[run["index"]]
-        keys = [
-            WindowKey(
-                offset + i,
-                run["run_id"],
-                part,
-                i * window_ns,
-                (i + 1) * window_ns,
-                (i + 1) * window_ns >= warmup_ns,
-            )
-            for i in range(count)
-        ]
-        runs.append(SavedRun(root / run["path"], run, part, keys))
-        offset += count
-    return runs
 
 
 def _milliseconds(value: object) -> str:
@@ -150,57 +94,17 @@ def evaluate_saved_events(
     if integer(max_bytes, "event output quota", minimum=4096) > MAX_OUTPUT_BYTES:
         raise TraceError("event output quota exceeds 64 MiB")
     with _new_output(target) as staging:
-        data = load_training_data(prepared, source=source)
-        frozen = inspect_frozen_experiment(experiment, data)
-        ood_protocol, collections = verify_ood(source, reference, suite)
-        if ood_protocol["feature_configuration"] != asdict(data.configuration):
-            raise TraceError("event OOD feature configuration mismatch")
-        ood_meta = inspect_saved_ood(
-            ood_results,
-            data,
-            frozen,
-            experiment=experiment,
+        saved = load_saved_evaluation(
+            prepared,
             source=source,
+            experiment=experiment,
+            ood_results=ood_results,
             suite=suite,
             reference=reference,
         )
-        policies = saved_policies(data, frozen)
-        warmup = max(
-            float(v)
-            for k, v in data._feature_template.items()
-            if k.endswith("_timeout_ns") and v is not None
-        )
+        data, frozen, ood_meta = saved.data, saved.frozen, saved.ood_meta
+        policies, inputs = saved.policies, saved.inputs
         window_ns = data.configuration.window_ns
-        id_runs = _runs(
-            source,
-            collections["id"],
-            {r["index"]: r["split"] for r in data.split["assignments"]},
-            window_ns=window_ns,
-            warmup_ns=warmup,
-        )
-        ood_runs: list[SavedRun] = []
-        for domain in DOMAINS:
-            ood_runs.extend(
-                _runs(
-                    suite / domain,
-                    collections[domain],
-                    {r["index"]: domain for r in collections[domain]["runs"]},
-                    window_ns=window_ns,
-                    warmup_ns=warmup,
-                    offset=sum(len(r.keys) for r in ood_runs),
-                )
-            )
-        inputs = {
-            name: _file_hash(path / "manifest.json")
-            for name, path in {
-                "prepared": prepared,
-                "source": source,
-                "experiment": experiment,
-                "ood_results": ood_results,
-                "suite": suite,
-                "reference": reference,
-            }.items()
-        }
         protocol = {
             "format": "autocan-saved-event-protocol",
             "format_version": 1,
@@ -234,81 +138,27 @@ def evaluate_saved_events(
             (part, model): [] for part in (*SPLITS, *DOMAINS) for model in policies
         }
         digest = sha256()
-        with ExitStack() as stack:
-            id_scores = stack.enter_context(
-                closing(
-                    iter_saved_decisions(
-                        experiment, frozen.manifest, (k for r in id_runs for k in r.keys), policies
-                    )
-                )
-            )
-            ood_keys = stack.enter_context(
-                closing(
-                    iter_saved_ood_keys(
-                        ood_results, ood_meta, (k for r in ood_runs for k in r.keys)
-                    )
-                )
-            )
-            ood_scores = stack.enter_context(
-                closing(iter_saved_decisions(ood_results, ood_meta, ood_keys, policies))
-            )
-            inventory = object_value(ood_meta["artifacts"], "OOD inventory")
-            labels = stack.enter_context(
-                closing(
-                    _table_rows(
-                        ood_results,
-                        "labels/windows.parquet",
-                        LABEL_SCHEMA,
-                        object_value(inventory["labels/windows.parquet"], "OOD labels"),
-                    )
-                )
-            )
-            ledger = stack.enter_context((staging / "runs.jsonl").open("wb"))
-            for groups, stream, is_ood in (
-                (id_runs, id_scores, False),
-                (ood_runs, ood_scores, True),
-            ):
-                for run in groups:
-                    decisions: dict[str, list[bool]] = {name: [] for name in policies}
-                    for _ in run.keys:
-                        predicted = next(stream)
-                        for name in policies:
-                            decisions[name].append(predicted[name])
-                    faults = _fault_episodes(run.root / "trace", run.summary["duration_ns"])
-                    if is_ood:
-                        for key in run.keys:
-                            expected = {
-                                "row_index": key.row_index,
-                                "normal_run": not faults,
-                                **window_label(key.start_ns, key.end_ns, key.eligible, faults),
+        with (staging / "runs.jsonl").open("wb") as ledger:
+            for run in saved.runs:
+                for name, (threshold, comparison) in policies.items():
+                    result = run.events[name]
+                    pooled[run.split, name].append(result)
+                    raw = (
+                        canonical_bytes(
+                            {
+                                "run_id": run.run_id,
+                                "split": run.split,
+                                "model_id": name,
+                                "threshold": threshold,
+                                "comparison": comparison,
+                                **asdict(result),
                             }
-                            if next(labels, None) != expected:
-                                raise TraceError("saved OOD truth alignment mismatch")
-                    for name, (threshold, comparison) in policies.items():
-                        result = evaluate_score_events(
-                            run.keys, decisions[name], faults, model_id=name, window_ns=window_ns
                         )
-                        pooled[run.split, name].append(result)
-                        raw = (
-                            canonical_bytes(
-                                {
-                                    "run_id": run.summary["run_id"],
-                                    "split": run.split,
-                                    "model_id": name,
-                                    "threshold": threshold,
-                                    "comparison": comparison,
-                                    **asdict(result),
-                                }
-                            )
-                            + b"\n"
-                        )
-                        reserve(raw)
-                        ledger.write(raw)
-                        digest.update(raw)
-                if next(stream, None) is not None:
-                    raise TraceError("extra saved decision windows")
-            if next(labels, None) is not None:
-                raise TraceError("extra saved OOD truth rows")
+                        + b"\n"
+                    )
+                    reserve(raw)
+                    ledger.write(raw)
+                    digest.update(raw)
         rows: list[dict[str, object]] = []
         fault_rows: list[dict[str, object]] = []
         for (part, name), runs in pooled.items():
@@ -369,6 +219,7 @@ def evaluate_saved_events(
             "score_events",
             "score_artifacts",
             "event_benchmark",
+            "saved_evaluation",
             "evaluation",
             "model_artifacts",
             "training_artifacts",

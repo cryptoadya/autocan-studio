@@ -89,10 +89,12 @@ from quiet segments of faulty runs.
   checksums. `models_trained` and `thresholds_selected` are empty;
   `scores_computed` is zero.
 
-Each saved ID/OOD window stream retains the 100,000-window bound. Only one run's
-decision vectors are buffered for grouping; bounded event results are retained
-for pooled summaries. Alarm episodes have a 10,000-per-run/detector cap. Output
-quota checks occur before publication. Existing outputs are refused; validation
+Each saved ID/OOD window stream retains the 100,000-window bound. The common
+saved-score reader retains bounded window keys, labels and five continuous score
+vectors, shared with [run-bootstrap evaluation](BOOTSTRAP.md);
+event matching still runs independently within each run. Bounded event results
+are retained for pooled summaries. Alarm episodes have a 10,000-per-run/detector
+cap. Output quota checks occur before publication. Existing outputs are refused; validation
 or quota failures clean staging. As with prior publishers, publication I/O failure
 or a crash may leave an incomplete destination; a complete manifest is required.
 Inputs and their manifests are never rewritten.
@@ -141,5 +143,5 @@ OOD still has **10 RF and 15 IF false alarm episodes in only 45.6 eligible secon
 versus zero for the rules. A brief alarm can detect an event despite low positive
 window recall; event recall and window F1 answer different questions. These tiny
 synthetic denominators do not establish real-CAN quality. No settings were changed
-in response. Uncertainty/runtime studies, live inference and final M9 acceptance
-remain separate work.
+in response. [Run-bootstrap uncertainty](BOOTSTRAP.md) is now available separately;
+runtime studies, live inference and final M9 acceptance remain separate work.

@@ -152,12 +152,12 @@ def inspect_saved_ood(
     return meta
 
 
-def iter_saved_decisions(
+def iter_saved_scores(
     root: Path,
     manifest: dict[str, object],
     keys: Iterable[WindowKey],
     policies: dict[str, tuple[float, Comparison]],
-) -> Generator[dict[str, bool], None, None]:
+) -> Generator[dict[str, float], None, None]:
     """Require five ordered, finite, frozen-policy scores for every saved key."""
     inventory = object_value(manifest["artifacts"], "score inventory")
     info = object_value(inventory["scores.parquet"], "scores")
@@ -198,7 +198,7 @@ def iter_saved_decisions(
         for key in keys:
             if count >= MAX_ROWS:
                 raise TraceError("saved window quota exceeded")
-            decisions = {}
+            scores = {}
             for name, (threshold, comparison) in policies.items():
                 row = next(stream, None)
                 if row is None or row["row_index"] != key.row_index or row["model_id"] != name:
@@ -212,10 +212,10 @@ def iter_saved_decisions(
                     or row["anomalous"] != positive
                 ):
                     raise TraceError("saved score threshold/comparison/decision mismatch")
-                decisions[name] = positive
+                scores[name] = value
                 digest.update(canonical_bytes({**row, "threshold": threshold}) + b"\n")
             count += 1
-            yield decisions
+            yield scores
         if next(stream, None) is not None:
             raise TraceError("extra saved score rows")
     if info["records"] != count * len(policies):
@@ -240,3 +240,18 @@ def iter_saved_ood_keys(
             yield key
         if next(stream, None) is not None:
             raise TraceError("extra saved OOD windows")
+
+
+def iter_saved_decisions(
+    root: Path,
+    manifest: dict[str, object],
+    keys: Iterable[WindowKey],
+    policies: dict[str, tuple[float, Comparison]],
+) -> Generator[dict[str, bool], None, None]:
+    """Compatibility view of the same validated continuous score stream."""
+    with closing(iter_saved_scores(root, manifest, keys, policies)) as stream:
+        for scores in stream:
+            yield {
+                name: scores[name] >= threshold if comparison == "ge" else scores[name] > threshold
+                for name, (threshold, comparison) in policies.items()
+            }

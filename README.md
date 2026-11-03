@@ -46,6 +46,9 @@ reporting window metrics and normal false alarms without refitting or tuning.
 The [saved-score event evaluation](docs/EVENT_EVALUATION.md) adds common temporal
 fault-event detection rate and latency by fault type from those existing ID/OOD
 scores, with no model loading, new inference or test/OOD tuning.
+[Run-bootstrap confidence intervals](docs/BOOTSTRAP.md) quantify window/event
+metric uncertainty by resampling whole runs within each saved split/domain,
+with paired detector draws and explicit undefined-replicate counts.
 
 ## Run the dashboard
 
