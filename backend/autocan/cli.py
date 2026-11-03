@@ -293,6 +293,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=int,
         help="optional positive wall-clock limit per worker; default: no deadline",
     )
+    acceptance = commands.add_parser(
+        "accept-m9", help="verify and consolidate frozen M9 evidence; no fitting or inference"
+    )
+    acceptance.add_argument("prepared", type=Path)
+    for option in (
+        "source",
+        "experiment",
+        "ood-results",
+        "suite",
+        "reference",
+        "events",
+        "bootstrap",
+        "inference",
+        "output",
+    ):
+        acceptance.add_argument(f"--{option}", type=Path, required=True)
+    acceptance.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
     bootstrap = commands.add_parser(
         "bootstrap-metrics", help="run-bootstrap CIs from saved ID/OOD scores; no inference"
     )
@@ -315,6 +332,31 @@ def main(argv: Sequence[str] | None = None) -> int:
             command.add_argument("--receiver", default="KOMBI")
     args = parser.parse_args(argv)
     try:
+        if args.command == "accept-m9":
+            from autocan.acceptance import accept_m9
+
+            verified = accept_m9(
+                args.prepared,
+                args.output,
+                source=args.source,
+                experiment=args.experiment,
+                ood_results=args.ood_results,
+                suite=args.suite,
+                reference=args.reference,
+                events=args.events,
+                bootstrap=args.bootstrap,
+                inference=args.inference,
+                max_bytes=args.max_bytes,
+            )
+            _write(
+                {
+                    "status": verified["status"],
+                    "path": str(args.output),
+                    "semantic_sha256": verified["semantic_sha256"],
+                },
+                stream=sys.stdout,
+            )
+            return 0
         if args.command == "benchmark-inference":
             from autocan.inference_benchmark import BenchmarkConfig, benchmark_inference
 

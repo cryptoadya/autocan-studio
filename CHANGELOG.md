@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased — M9 frozen-artifact acceptance
+
+- Add `accept-m9` for source-bound verification and a consolidated five-detector
+  comparison using preserved models, preprocessing, scores and fixed policies.
+- Independently replay event/bootstrap evaluation twice, validate archival
+  agreement and input immutability, and retain uncertainty/coverage limitations.
+- Verify the historical runtime capture and bridge matching model/numeric-data
+  content while keeping differing experiment/split identities explicit.
+- Publish scoped synthetic-pipeline acceptance; no fitting, inference, threshold
+  tuning, model selection, new datasets, UI or release is introduced.
+
+## Unreleased — M9 frozen inference performance
+
+- Add batch-1/256 wall-clock latency, throughput and isolated process RSS for
+  existing rules and frozen forests, with warm-ups and repeated fixed workloads.
+- Separate preprocessing/scoring from estimator-only time, validate score parity
+  outside timing, and record hardware, versions, hashes and thread configuration.
+- Preserve the actual M1 capture separately from CI. Worker deadlines are opt-in
+  and expired limits produce contextual CLI errors without partial publication.
+
 ## Unreleased — M9 run-bootstrap confidence intervals (eighth pass)
 
 - Add `bootstrap-metrics` on validated saved ID/OOD scores for all three rules

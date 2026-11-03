@@ -17,7 +17,7 @@ active faults and a bounded timeline in live and playback views. The headless CL
 exports/imports verified Parquet runs and builds a selected receiver's raw CAN
 dataset with physically separate fault labels. Dataset Factory generates six
 seeded driving modes and bounded collections of normal/fault runs with a verified
-manifest. ML remains later work. See [fault scenarios](docs/FAULTS.md),
+manifest. Offline ML evaluation is described below; live inference remains later work. See [fault scenarios](docs/FAULTS.md),
 [Parquet exchange](docs/PARQUET.md) and [Dataset Factory](docs/DATASET_FACTORY.md).
 The [M7 acceptance report](docs/M7_ACCEPTANCE.md) records the completed checks,
 full collection round trips/reruns and current browser regression evidence.
@@ -52,6 +52,9 @@ with paired detector draws and explicit undefined-replicate counts.
 The [frozen inference benchmark](docs/INFERENCE_BENCHMARK.md) measures saved
 rule/forest scoring latency, throughput and isolated process RSS without fitting
 or tuning, with separate batch sizes and estimator-only timings.
+[M9 frozen-artifact acceptance](docs/M9_ACCEPTANCE.md) verifies lineage and
+repeatability and consolidates quality, uncertainty and historical M1 runtime
+evidence without fitting, selecting models or recomputing scores.
 
 ## Run the dashboard
 
