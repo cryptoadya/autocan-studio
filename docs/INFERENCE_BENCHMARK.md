@@ -50,6 +50,14 @@ Hardware collection excludes hostnames, serial numbers and UUIDs.
 - Warm-up: 1–100 full, untimed workload sweeps (default 2), followed by 2–100
   measured sweeps (default 5), always in the same order. GC retains Python's
   default behavior. No per-detector adaptive repetitions or time-based stopping.
+- Worker deadline: no implicit wall-clock limit. Work remains bounded by the
+  configured number of windows and sweeps, so large accepted workloads can
+  finish on slower machines. Optionally set `--worker-timeout-seconds 3600`
+  to impose a positive integer limit **per worker**, covering startup,
+  validation, parity, warm-up and measurement. The value (or `null` for no
+  deadline) is recorded in new results' configuration. A timeout returns a
+  contextual CLI error, cleans staging and publishes no partial result; increase
+  or omit the limit to rerun. It never shortens sweeps or reports partial metrics.
 - Preprocessing + scoring: calls the existing forest `.score` method, including
   frozen transform, matrix construction, estimator call and Python score
   validation. Rules reconstruct the raw feature mapping and call the existing
@@ -152,13 +160,51 @@ The measurement command uses already existing artifacts and a new destination:
 
 An initial uv lock check could not create the default cache inside the sandbox;
 the writable-cache commands above resolved that environment failure.
-Frontend/browser checks are not run for this backend benchmark-only change.
-No remote CI or Linux performance result is claimed.
+Frontend/browser checks were not run locally for the initial implementation.
+Subsequent push/PR CI passed Python, frontend and browser checks. CI correctness
+results remain separate from the recorded M1 measurements; no Linux performance
+result is claimed.
 
-Final local verification: **484 tests passed in 502.13 seconds**, including all
+Initial implementation verification: **484 tests passed in 502.13 seconds**, including all
 23 new benchmark tests. Ruff lint and formatting, strict mypy, lockfile
 validation, source/wheel builds and `git diff --check` passed. The earlier
 standalone focused run passed 20 tests; the three additional regressions passed
-in the final full-suite run. No remote CI run was started for this local branch.
+in that full-suite run, before the first push and PR CI runs.
 The M1 capture records its pre-commit working-tree state (`git_dirty: true`)
 and the exact package implementation hash, independently of the later commit ID.
+
+## Worker timeout correction
+
+PR review found that the original implicit 600-second worker deadline could
+kill accepted workloads: the recorded M1 batch-1 IsolationForest rate implies
+about 1,352 seconds for 4096 windows × 100 measured sweeps alone. The deadline
+is now opt-in as described above, and `TimeoutExpired` becomes a contextual
+`TraceError` handled by the CLI. Regression tests exercise the maximum accepted
+configuration, default and explicit deadline forwarding, invalid deadline
+values, and timeout cleanup without a traceback or published output.
+
+The original M1 capture is preserved byte for byte. Its implementation hash
+identifies the pre-fix code included in commit `39b896c`; it is historical
+measurement evidence, not a run of the deadline correction. The correction does
+not change timed scoring, workload ordering, models, preprocessing or thresholds.
+No new performance measurement is claimed.
+
+Commands used for the correction:
+
+```sh
+.venv/bin/python -m pytest tests/test_inference_benchmark.py -q -k 'invalid_worker_deadline or worker_deadline_is_explicit or cli_worker_timeout'
+.venv/bin/python -m pytest tests/test_inference_benchmark.py -q
+.venv/bin/ruff check .
+.venv/bin/ruff format --check .
+.venv/bin/mypy
+UV_CACHE_DIR=/tmp/autocan-uv-cache /tmp/autocan-uv-0.13.6/bin/uv build --no-sources
+git diff --check
+```
+
+The existing CI workflow runs `uv run --locked pytest` for the complete suite,
+as well as frontend/browser checks, before merge.
+
+Correction verification before push: all 12 new regression cases passed, then
+all 35 benchmark tests passed in 158.73 seconds. Ruff lint/format, strict mypy,
+source/wheel builds and diff checks also passed. Complete-suite and UI checks
+are verified by CI for the final PR head before merge.

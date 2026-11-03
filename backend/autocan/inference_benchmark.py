@@ -62,6 +62,7 @@ class BenchmarkConfig:
     warmups: int = 2
     repetitions: int = 5
     threads: int = 1
+    worker_timeout_seconds: int | None = None
 
     def __post_init__(self) -> None:
         for name, low, high in (
@@ -73,6 +74,8 @@ class BenchmarkConfig:
             value = integer(getattr(self, name), name, minimum=low)
             if value > high:
                 raise ValueError(f"{name} exceeds supported limit {high}")
+        if self.worker_timeout_seconds is not None:
+            integer(self.worker_timeout_seconds, "worker timeout seconds", minimum=1)
         if self.windows % 256:
             raise ValueError("windows must be a multiple of 256 (no partial batches)")
 
@@ -352,6 +355,32 @@ def _report(result: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _run_worker(
+    request: dict[str, Any],
+    environment: dict[str, str],
+    config: BenchmarkConfig,
+) -> dict[str, Any]:
+    try:
+        worker = subprocess.run(
+            [sys.executable, "-m", "autocan.inference_benchmark"],
+            input=json.dumps(request),
+            capture_output=True,
+            text=True,
+            env=environment,
+            timeout=config.worker_timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise TraceError(
+            f"benchmark worker timed out after {config.worker_timeout_seconds} seconds "
+            f"(detector={request['detector']}, batch={request['batch_size']}, "
+            f"mode={request['mode']}); increase --worker-timeout-seconds "
+            "or omit it to use no deadline"
+        ) from exc
+    if worker.returncode:
+        raise TraceError(f"benchmark worker failed: {worker.stderr[-4000:]}")
+    return dict(json.loads(worker.stdout))
+
+
 def benchmark_inference(
     prepared: Path,
     target: Path,
@@ -399,17 +428,7 @@ def benchmark_inference(
                         "mode": mode,
                         "configuration": asdict(config),
                     }
-                    worker = subprocess.run(
-                        [sys.executable, "-m", "autocan.inference_benchmark"],
-                        input=json.dumps(request),
-                        capture_output=True,
-                        text=True,
-                        env=child_env,
-                        timeout=600,
-                    )
-                    if worker.returncode:
-                        raise TraceError(f"benchmark worker failed: {worker.stderr[-4000:]}")
-                    rows.append(json.loads(worker.stdout))
+                    rows.append(_run_worker(request, child_env, config))
         if input_fingerprints(prepared, source, experiment) != before:
             raise TraceError("benchmark input changed during measurement")
         result = {

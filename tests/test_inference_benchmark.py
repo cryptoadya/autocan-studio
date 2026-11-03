@@ -98,6 +98,7 @@ def test_cli_isolated_workers_preserve_inputs_and_record_provenance(
     assert len(manifest["implementation_sha256"]) == 64
     assert result["configuration"]["batch_sizes"] == [1, 256]
     assert result["configuration"]["threads"] == 1
+    assert result["configuration"]["worker_timeout_seconds"] is None
     assert result["environment"]["python"]
     assert result["environment"]["package_versions"]["threadpoolctl"]
     assert result["environment"]["hardware"]["logical_cpus"]
@@ -242,3 +243,71 @@ def test_single_model_loading_never_deserializes_sibling(
     assert list(loaded.models) == ["isolation_forest"]
     with pytest.raises(ValueError):
         load_frozen_experiment(ml_joint, data, detector="unknown")
+
+
+@pytest.mark.parametrize("value", [0, -1, True, False, 1.5, math.nan, math.inf, "600"])
+def test_invalid_worker_deadline(value: Any) -> None:
+    with pytest.raises(ValueError):
+        bench.BenchmarkConfig(worker_timeout_seconds=value)
+
+
+@pytest.mark.parametrize("deadline", [None, 1, 3600])
+def test_worker_deadline_is_explicit_and_applies_to_maximum_workload(
+    monkeypatch: pytest.MonkeyPatch,
+    deadline: int | None,
+) -> None:
+    import subprocess
+    import sys
+    from dataclasses import asdict
+
+    options = {} if deadline is None else {"worker_timeout_seconds": deadline}
+    config = bench.BenchmarkConfig(windows=4096, warmups=100, repetitions=100, **options)
+    request = {
+        "prepared": "/unused/prepared",
+        "source": "/unused/source",
+        "experiment": "/unused/experiment",
+        "detector": "isolation_forest",
+        "batch_size": 1,
+        "mode": "preprocessing_scoring",
+        "configuration": asdict(config),
+    }
+
+    def execute(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        # The external process boundary is simulated: no hours-long timing test.
+        assert command == [sys.executable, "-m", "autocan.inference_benchmark"]
+        assert kwargs["timeout"] == deadline
+        assert kwargs["env"] == {"OMP_NUM_THREADS": "1"}
+        assert json.loads(kwargs["input"]) == request
+        return subprocess.CompletedProcess(command, 0, '{"status":"measured"}', "")
+
+    monkeypatch.setattr(subprocess, "run", execute)
+    assert bench._run_worker(request, {"OMP_NUM_THREADS": "1"}, config) == {"status": "measured"}
+
+
+def test_cli_worker_timeout_is_contextual_and_cleans_staging(
+    ml_root: Path,
+    ml_joint: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import subprocess
+
+    from autocan.cli import main
+
+    original = subprocess.run
+
+    def expire_worker(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command[1:] == ["-m", "autocan.inference_benchmark"]:
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+        return original(command, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", expire_worker)
+    target = tmp_path / "deadline-output"
+    assert main(_args(ml_root, target) + ["--worker-timeout-seconds", "1"]) == 1
+    stderr = capsys.readouterr().err
+    assert "heartbeat_timeout" in stderr and "batch=1" in stderr
+    assert "preprocessing_scoring" in stderr and "1 seconds" in stderr
+    assert "Traceback" not in stderr
+    assert not target.exists()
+    assert not list(tmp_path.glob(".autocan-*"))

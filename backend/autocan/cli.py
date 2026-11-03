@@ -288,6 +288,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     inference.add_argument("--warmups", type=int, default=2)
     inference.add_argument("--repetitions", type=int, default=5)
     inference.add_argument("--threads", type=int, default=1)
+    inference.add_argument(
+        "--worker-timeout-seconds",
+        type=int,
+        help="optional positive wall-clock limit per worker; default: no deadline",
+    )
     bootstrap = commands.add_parser(
         "bootstrap-metrics", help="run-bootstrap CIs from saved ID/OOD scores; no inference"
     )
@@ -323,6 +328,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     warmups=args.warmups,
                     repetitions=args.repetitions,
                     threads=args.threads,
+                    worker_timeout_seconds=args.worker_timeout_seconds,
                 ),
             )
             _write(measured, stream=sys.stdout)
