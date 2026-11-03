@@ -278,6 +278,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     for option in ("source", "experiment", "ood-results", "suite", "reference", "output"):
         events.add_argument(f"--{option}", type=Path, required=True)
     events.add_argument("--max-bytes", type=int, default=16 * 1024 * 1024)
+    inference = commands.add_parser(
+        "benchmark-inference", help="benchmark trusted frozen M9 scoring; no fitting or tuning"
+    )
+    inference.add_argument("prepared", type=Path)
+    for option in ("source", "experiment", "output"):
+        inference.add_argument(f"--{option}", type=Path, required=True)
+    inference.add_argument("--windows", type=int, default=256)
+    inference.add_argument("--warmups", type=int, default=2)
+    inference.add_argument("--repetitions", type=int, default=5)
+    inference.add_argument("--threads", type=int, default=1)
     bootstrap = commands.add_parser(
         "bootstrap-metrics", help="run-bootstrap CIs from saved ID/OOD scores; no inference"
     )
@@ -300,6 +310,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             command.add_argument("--receiver", default="KOMBI")
     args = parser.parse_args(argv)
     try:
+        if args.command == "benchmark-inference":
+            from autocan.inference_benchmark import BenchmarkConfig, benchmark_inference
+
+            measured = benchmark_inference(
+                args.prepared,
+                args.output,
+                source=args.source,
+                experiment=args.experiment,
+                config=BenchmarkConfig(
+                    windows=args.windows,
+                    warmups=args.warmups,
+                    repetitions=args.repetitions,
+                    threads=args.threads,
+                ),
+            )
+            _write(measured, stream=sys.stdout)
+            return 0
         if args.command == "bootstrap-metrics":
             from autocan.bootstrap_benchmark import bootstrap_saved_metrics
 

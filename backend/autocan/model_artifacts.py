@@ -186,12 +186,16 @@ def inspect_frozen_experiment(root: Path, data: LoadedTrainingData) -> FrozenExp
     return FrozenExperimentMetadata(meta, metadata, states, thresholds, seed)
 
 
-def load_frozen_experiment(root: Path, data: LoadedTrainingData) -> FrozenExperiment:
-    """Validate all JSON/inventories before deserializing either trusted estimator."""
+def load_frozen_experiment(
+    root: Path, data: LoadedTrainingData, *, detector: str | None = None
+) -> FrozenExperiment:
+    """Validate both bundles, then load both or just one detector for isolated RSS."""
+    if detector is not None and detector not in MODEL_IDS:
+        raise ValueError("unsupported frozen detector")
     frozen = inspect_frozen_experiment(root, data)
     metadata, states, seed = frozen.metadata, frozen.preprocessors, frozen.seed
     models: dict[str, FittedModel] = {}
-    for name in MODEL_IDS:
+    for name in MODEL_IDS if detector is None else (detector,):
         model, state = metadata[name], states[name]
         try:
             estimator = pickle.loads((root / f"models/{name}/model.pkl").read_bytes())
