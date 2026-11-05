@@ -1,15 +1,12 @@
-# Data and timing contracts — DemoCar 0.1.0 / 0.2.0
+# Simulation, recording, and API contracts
 
-M0 implements and tests the DBC section. M1 implements the clock, throttle/RPM
-model, frames, per-receiver delivery, applied throttle commands, and event
-envelope. M2 implements Offline, freshness deadlines and recording/rerun.
-Schema version is `1`; profile version is
-`democar-0.1.0` for legacy and `democar-0.2.0` for the M5 network. Times are
-nonnegative integer nanoseconds, never floats.
+The canonical event schema version is `1`. The legacy profile is
+`democar-0.1.0` and the network profile is `democar-0.2.0`. Timestamps are
+nonnegative integer nanoseconds.
 
 ## Initial conditions and timing
 
-### M5 versioned ECU network
+### Versioned ECU network
 
 The original `democar` / `democar-0.1.0` profile stays available for legacy
 callers and recordings. `democar-network` / `democar-0.2.0` extends the synthetic
@@ -60,7 +57,7 @@ Wheel speeds are equal signed speeds in this straight-line/no-slip model;
 coolant warms from 20 toward 90 °C at 0.2 °C/s when running and cools toward
 20 °C at 0.05 °C/s when stopped. These are synthetic demonstration parameters.
 
-### M5 motion-control extension
+### Motion controls
 
 VehicleModel owns signed physical speed (forward positive, reverse negative),
 actual P/R/N/D selection and brake input. Initial state is P, 0 km/h and 0% brake;
@@ -89,10 +86,10 @@ and initial physical state. The current RPM DBC/profile remains unchanged.
 | Added control/state | Owner | Permitted access |
 | --- | --- | --- |
 | Brake and requested gear | DriverInput | VehicleModel through queued validated commands; explicit applied-result log |
-| Actual gear and physical speed | VehicleModel | Physical-model display/trace only in this pass; no direct access by KOMBI |
+| Actual gear and physical speed | VehicleModel | Physical-model display and trace; no direct access by KOMBI |
 | Running RPM coupled to movement | VehicleModel | Existing permitted Engine RPM sensor -> EngineStatus -> KOMBI |
 
-### M5 engine-control extension
+### Engine and ignition controls
 
 Initial ignition is ON with the physical engine running at 800 rpm. Supported
 ignition requests are OFF/ACC/ON/START: OFF and ACC stop the physical engine;
@@ -140,12 +137,10 @@ not real ECU timings. Period must be positive and `0 < stale_age < timeout_age`.
 Changes to run parameters require a new recorded configuration, not an
 unlogged mutation.
 
-The M1 model uses `target = idle + (maximum - idle) * throttle / 100` and moves
+The parked engine model uses `target = idle + (maximum - idle) * throttle / 100` and moves
 toward it by at most `slew * delta_ns / 1e9` per physics tick, without overshoot.
-M5 adds the explicit engine/ignition controls described above; absent these
-and motion commands, the original parked throttle trajectory remains unchanged.
 The model is noise-free. Seed is accepted and reported, but no random stream is
-consumed by physics. M2 uses `sha256("autocan-rng-v1:{seed}:{stream}")` to derive
+consumed by physics. The simulator uses `sha256("autocan-rng-v1:{seed}:{stream}")` to derive
 independent `physics`, `scenario` and `delivery` seeds. Only delivery loss uses
 Python Random, seeded with its derived integer. Fixed delay draws no randomness;
 the initial seeds and derivation algorithm are stored in each manifest.
@@ -159,7 +154,7 @@ per-run sequence to break ties. Equal-time priority order is:
 2. Physics integration tick.
 3. Frame publication.
 4. Per-receiver frame delivery.
-5. Freshness deadlines and future feature window closure.
+5. Freshness deadlines.
 6. State snapshot.
 
 A callback cannot schedule an earlier priority phase at its own timestamp or
@@ -171,18 +166,16 @@ The command log records canonical application time and sequence, independent
 of network arrival time. Replay uses these applied values.
 
 An applied input record carries `command_seq`, `applied_at_ns`, `command_kind`,
-and validated parameters. In the first slice the domain commands are
-`set_throttle(percent)` and `set_engine_publishing(enabled)`; offline intervals
+and validated parameters. Publication-only offline intervals
 use [start, end), with enable/disable applied in the command phase. Invalid
 commands fail visibly without modifying simulation state. Duplicate commands
 at the same time use their logged order.
 
-The runtime supports `set_throttle` and `set_engine_publishing`. Explicit application times must align with
+Explicit command application times must align with
 the 10 ms physics grid; past or already completed earlier phases are rejected.
 If no time is specified, the core chooses the next valid input boundary and
 returns it. This prevents a mid-tick command from rewriting part of the already
-integrated physical interval. Applied commands are events to an optional observer;
-M2 persists them separately from frame observations.
+integrated physical interval. The recorder persists applied commands separately from frame observations.
 
 The event queue is bounded (1024 pending events by default). Callback failures
 stop advancement until reset; reentrant advancement is rejected. Pause does
@@ -200,8 +193,8 @@ changed by delivery or a downstream consumer.
 
 **DeliveryEvent** has `frame_id`, `receiver_id`, and `received_at_ns`, plus its
 event envelope. One frame can be delivered at different times to different
-receivers. Delivery must not precede creation. In the first slice, each
-scheduled receiver delivery occurs at most once; a dropped delivery produces
+receivers. Delivery must not precede creation. Each scheduled receiver delivery
+occurs at most once. A dropped delivery produces
 no received observation.
 
 The event envelope is `run_id`, positive per-run `event_seq`, `sim_time_ns`,
@@ -222,7 +215,7 @@ A receiver sees only its CAN ID, flags, channel, DLC/payload, and its virtual
 receive time. Internal `source_ecu`, frame creation time, scheduled deliveries,
 injector status, physical truth, and fault labels are not supplied as hidden
 inputs. The recorder can correlate observations with internal events through
-frame IDs; the future feature pipeline cannot use these IDs as features.
+frame IDs; the offline feature pipeline cannot use these IDs as features.
 
 ## KOMBI freshness
 
@@ -242,7 +235,7 @@ delivery precedes deadlines at equal time, a valid frame arriving exactly at
 the threshold restores freshness before a stale/timeout transition. Timers
 must execute when the entire bus is silent. Invalid data does not refresh RPM.
 
-## DBC wire contract (implemented in M0)
+## DBC wire contract
 
 Canonical file: `backend/autocan/profiles/democar.dbc`, packaged with the Python
 module. `load_democar_database()` returns a fresh, strict cantools CAN database;
@@ -271,10 +264,10 @@ are invalid and must produce an explicit failure, never a valid frame.
 
 For receiver decoding, require the message's declared DLC and disable
 truncated/excess payload acceptance. Decode does not itself establish physical
-plausibility: a decoded EngineRpm outside [0, 8000] must be rejected by future
-receiver validation before refreshing KOMBI. Physically implausible but
+plausibility: a decoded EngineRpm outside [0, 8000] is rejected by receiver
+validation before refreshing KOMBI. Physically implausible but
 representable values (for example 7500 rpm at idle throttle) remain valid wire
-data for later fault scenarios. Raw corruption is a separate mechanism.
+data for fault scenarios. Raw corruption is a separate mechanism.
 
 | RPM | Raw integer | Payload hex |
 | --- | --- | --- |
@@ -284,7 +277,7 @@ data for later fault scenarios. Raw corruption is a separate mechanism.
 | 3000 | 12000 | e02e |
 | 8000 | 32000 | 007d |
 
-## Reproduction contract (implemented in M2)
+## Recording and reproduction
 
 A manifest records schema/profile/core versions, package versions, git commit
 when available, DBC/config hashes, initial physical/ECU state, seed/RNG stream
@@ -296,7 +289,7 @@ Playback reads saved events without physics. Rerun computes a new stream and
 compares canonical virtual times, order, frames, deliveries, and state changes.
 Exclude new run IDs and wall-clock timestamps; preserve all behaviorally
 relevant fields. Artifact checksums check bytes; semantic hashes check canonical
-content. Future transport and physics randomness use independent streams.
+content. The manifest records independent transport and physics RNG seeds.
 
 ### Scenario and transport bounds
 
@@ -350,10 +343,10 @@ canonical event hash and final state. Final pause state is restored without
 introducing wall-clock input. Ending with delayed frames still in flight is
 valid: their scheduled future receptions are outside that recorded time range.
 
-## M3 local API and live display
+## Local API and live display
 
 The recording and API/WS envelope schema remains `1`; new recordings use core
-`m5-network-1` and the selected profile version. The API exposes both DemoCar
+`m6-faults-1` and the selected profile version. The API exposes both DemoCar
 profiles, throttle/brake/gear, ignition/physical
 engine controls and the Offline publication fault. ML and profile editing are
 not exposed.
@@ -369,7 +362,7 @@ not exposed.
 | `POST /api/simulations/{id}/faults` | `{offline: true, ecu_id: "abs"}`; publication only, returns canonical `applied_at_ns`; omitted ECU targets Engine |
 | `GET /api/runs` | Up to 64 complete, verified server-style UUID recordings |
 | `GET /api/runs/{id}/playback?until_ns=N` | Bounded display snapshot through N (default: recorded end); verified saved events only |
-| `POST /api/runs/{id}/rerun` | Fresh computation using M2 compatibility/integrity checks |
+| `POST /api/runs/{id}/rerun` | Fresh computation with recording compatibility and integrity checks |
 
 Payloads reject unknown fields, boolean seeds/throttle and non-boolean Offline.
 Inputs are queued, not applied by HTTP receipt; a paused run applies them after
@@ -386,8 +379,8 @@ explicitly physical model telemetry, never a KOMBI/CAN speed measurement. Model
 speed is integrated in m/s rounded to 12 decimal places; canonical km/h samples
 are rounded to 9 places. Playback consumes only saved samples and command results.
 Older recordings without motion commands retain their original stationary P
-state. New recordings use core version `m6-faults-1` and store the motion model
-version/settings in their manifest; old-core rerun still requires the old core.
+state. New recordings store the motion model version and settings in their
+manifest. Rerunning an older trace requires its compatible core and runtime.
 Saved-run identifiers are UUID hex strings, not filesystem paths. Failed or
 incomplete recordings are omitted from the saved-run selector; they still consume
 local disk capacity and are never deleted automatically.
@@ -411,22 +404,21 @@ freshness status; stale values are drawn with dashed lines.
 There is no per-client event backlog. At most 8 WS clients are allowed; a send
 blocked for 1 s disconnects. A client must replace its view with the reconnect
 snapshot. The server reports any skipped display deliveries; it does not drop
-canonical recording events. Commands/fault ground truth remain in their separate
-M2 artifacts. A recording quota failure stops the run rather than losing events.
+canonical recording events. Commands/fault ground truth remain in separate artifacts. A recording quota failure stops the run rather than losing events.
 
 API sessions are limited to 120 virtual seconds, 256 commands and the existing
 16 MiB trace quota. Creation stops at 64 entries under the configured run root.
 HTTP POST/PATCH bodies are capped at 4096 bytes. The source launcher bounds
 concurrent connections to 32 and incoming WS messages/queues to 4096 bytes / 8.
-There is no arbitrary upload, export format, scenario editor or remote API in M3.
+Parquet exchange and arbitrary JSON scenarios are headless CLI workflows.
 
-## M6 fault commands and timeline
+## Fault commands and timeline
 
 The network profile accepts validated `inject_fault` and `clear_fault` core,
 CLI and API/UI commands. They use the same input phase, canonical time/order and separate
 commands/ground-truth artifacts as existing controls. Publication, encoding,
 delivery, overlap/clear, RNG and compatibility rules are specified in
-[fault contracts](FAULTS.md). M5 publication requests remain compatible.
+[simulation and fault contracts](SIMULATION.md). Manual publication requests remain compatible.
 
 Creation optionally selects a whitelisted built-in `scenario_id`; the session
 reserves its commands, uses its transport and completes at its exact duration.
@@ -439,17 +431,17 @@ and optional scenario metadata. Each WS update replaces these small projections.
 Timeline samples are bounded by the playback position and never enter CAN payloads.
 Observer `display_seq` determines WS deltas even when delay reorders frame IDs.
 Displayed network frames include `created_at_ns` for the synthetic delay column;
-it remains internal provenance, excluded from the allowed future detector inputs.
+it remains internal provenance, excluded from the offline detector inputs.
 
-## M7 Parquet exchange and observer datasets
+## Parquet exchange and observer datasets
 
-The additive headless formats are specified in [Parquet storage](PARQUET.md).
+The additive headless formats are specified in [Parquet storage](DATA_FORMATS.md#parquet-exchange-and-observer-datasets).
 Normalized frame publications and per-receiver deliveries preserve the JSONL
 canonical sequence; hidden simulator provenance is excluded from the selected
 receiver's observation table. Fault truth is stored separately. Existing JSONL
 version 1, playback and exact-version rerun contracts remain unchanged.
 
-The [Dataset Factory](DATASET_FACTORY.md) composes these formats into a bounded
+The [Dataset Factory](DATA_FORMATS.md#dataset-factory) composes these formats into a bounded
 collection of seeded driving runs. Its root manifest binds each saved scenario,
 source trace, Parquet bundle and selected-receiver dataset through a physical
 inventory and a logical collection hash. Run IDs and physical container bytes

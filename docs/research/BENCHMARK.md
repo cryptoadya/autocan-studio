@@ -1,7 +1,7 @@
 # Fixed Tier 0 benchmark — M8 second pass
 
 Evaluate the three [causal baseline rules](BASELINES.md) on an existing verified
-M7 [Dataset Factory collection](DATASET_FACTORY.md). This pass adds whole-run
+M7 [Dataset Factory collection](../DATA_FORMATS.md#dataset-factory). This pass adds whole-run
 partitions, episode matching, detection latency and false alarm episodes/hour.
 Thresholds are fixed before scoring. It does not fit a model or select thresholds.
 The [third M8 pass](OOD.md) adds separately generated/evaluated OOD fault and

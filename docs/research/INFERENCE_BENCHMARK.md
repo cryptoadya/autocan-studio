@@ -96,9 +96,9 @@ test/OOD results. There is no MLflow, UI, live inference or new dataset work.
 
 ## Local M1 observation and CI
 
-The checked-in [M1 observation](benchmarks/m1-frozen-inference-2026-11-03/report.md)
-contains the actual local measurements; [raw measurements](benchmarks/m1-frozen-inference-2026-11-03/benchmark.json)
-and [provenance](benchmarks/m1-frozen-inference-2026-11-03/manifest.json) accompany it. It uses the
+The checked-in [M1 observation](../benchmarks/m1-frozen-inference-2026-11-03/report.md)
+contains the actual local measurements; [raw measurements](../benchmarks/m1-frozen-inference-2026-11-03/benchmark.json)
+and [provenance](../benchmarks/m1-frozen-inference-2026-11-03/manifest.json) accompany it. It uses the
 pre-existing 12-run synthetic acceleration fixture, not a new dataset. Its
 prepared semantic hash is
 `5ce5ddcb8eed4ae03ac928135c407fe89edf48d8cb4cd2f7cc14e7ae96735521`;

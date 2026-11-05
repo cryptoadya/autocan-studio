@@ -1,9 +1,9 @@
 # M9 — frozen-artifact acceptance
 
 This pass verifies the existing synthetic experiment and publishes one
-[consolidated report](acceptance/m9-frozen-2026-11-03/report.md),
-[machine-readable evidence](acceptance/m9-frozen-2026-11-03/acceptance.json) and
-[provenance manifest](acceptance/m9-frozen-2026-11-03/manifest.json).
+[consolidated report](../acceptance/m9-frozen-2026-11-03/report.md),
+[machine-readable evidence](../acceptance/m9-frozen-2026-11-03/acceptance.json) and
+[provenance manifest](../acceptance/m9-frozen-2026-11-03/manifest.json).
 Acceptance is scoped to reproducible frozen-artifact software. It does not
 establish robust anomaly detection across operating regimes or real CAN.
 Negative results, including substantial normal OOD false alarms, remain visible.
@@ -22,9 +22,9 @@ The same files and compatible recorded package versions are prerequisites.
 Local datasets and pickles remain ignored by Git; a checkout and hashes alone
 cannot reconstruct missing input files. This command does not silently replace
 missing inputs with newly generated data or models. See
-[training data](TRAINING_DATA.md), [saved models](RANDOM_FOREST.md),
-[OOD](ML_OOD.md), [events](EVENT_EVALUATION.md),
-[bootstrap](BOOTSTRAP.md) and [runtime](INFERENCE_BENCHMARK.md) for their contracts.
+[training data](../research/TRAINING_DATA.md), [saved models](../research/RANDOM_FOREST.md),
+[OOD](../research/ML_OOD.md), [events](../research/EVENT_EVALUATION.md),
+[bootstrap](../research/BOOTSTRAP.md) and [runtime](../research/INFERENCE_BENCHMARK.md) for their contracts.
 Hashes establish integrity and compatibility, not authenticity or proof of an
 experiment's selection history. Inputs must come from a trusted local process.
 
