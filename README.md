@@ -1,12 +1,12 @@
 # AutoCAN Studio
 
-AutoCAN Studio is a local lab for simulating Controller Area Network (CAN) traffic, injecting faults, and evaluating anomaly detectors offline.
+AutoCAN Studio is a local lab for simulating Controller Area Network (CAN) traffic, injecting faults, evaluating detectors offline, and inspecting live anomaly scores.
 
 Repeat a vehicle-network failure under controlled conditions, inspect what each receiver could observe, and compare detectors against known fault intervals. DemoCar uses synthetic physics and original DBC profiles for experimentation without vehicle hardware. Real-vehicle diagnostics are outside its scope.
 
 [![AutoCAN Studio fault lab showing a recorded RPM spike and the CAN freshness timeline](docs/images/m6-fault-scenarios.png)](docs/images/m7-studio-acceptance.png)
 
-*Fault lab during playback of a synthetic RPM spike. The linked full dashboard capture shows a separate Engine ECU outage. [v0.1.0 browser demo](docs/images/m4-demo.webm)*
+*Fault lab during playback of a synthetic RPM spike. [Watch the live ML demo](docs/images/m11-live-ml.webm) · [Train and run it from a clean clone](docs/LIVE_DEMO.md)*
 
 ## What you can do
 
@@ -14,11 +14,12 @@ Repeat a vehicle-network failure under controlled conditions, inspect what each 
 | --- | --- |
 | **Dashboard** | Drive a simulated vehicle, inspect decoded CAN frames and per-message freshness, inject faults or run built-in scenarios, and save, seek through, or recompute a recording. |
 | **Headless CLI** | Run seeded JSON scenarios on an integer virtual clock. Record, verify, replay, and rerun them. Exchange traces through Parquet and generate collections across six driving modes with separate fault labels. |
+| **Live ML** | Score DemoCar network sessions with a trusted local Random Forest, compare alert and fault tracks, and seek through recorded scores. |
 | **Offline research** | Build causal feature windows, compare three fixed rules with two scikit-learn models, and evaluate saved scores for window accuracy, fault detection, false alarms, uncertainty, and inference performance. |
 
 Five electronic control units (ECUs) exchange messages in the network profile. They represent the engine, ABS/DSC, transmission, body, and instrument cluster (KOMBI). Eight DBC-defined messages travel through a virtual bus with receiver-specific delivery. Faults can suppress publication, drop or delay messages, change their rate, or perturb encoded signals.
 
-The default branch includes unreleased features. The only published release, v0.1.0, ships the original engine-to-cluster demo. [Release notes](https://github.com/cryptoadya/autocan-studio/releases/tag/v0.1.0) · [Unreleased changes](CHANGELOG.md#unreleased)
+The latest published release, v1.0.0, includes the five-ECU simulator and dataset tools. The default branch adds live scoring and offline ML evaluation. [Release notes](https://github.com/cryptoadya/autocan-studio/releases/tag/v1.0.0) · [Unreleased changes](CHANGELOG.md#unreleased)
 
 ## Architecture
 
@@ -32,6 +33,9 @@ flowchart LR
     Sim -->|Commands and fault truth| Trace
     Trace --> Data["Parquet + receiver datasets"]
     Data --> Eval["Causal windows + offline evaluation"]
+    CAN -->|Observer deliveries| Live["Live features + trusted Random Forest"]
+    Live -->|Scores and alerts| Dash
+    Live -->|Score samples and model provenance| Trace
 ```
 
 The simulator owns physics and scheduling. ECU models receive narrow sensor or actuator interfaces and their own CAN deliveries. KOMBI derives measurements and freshness from its received CAN stream. Recording keeps applied commands and fault truth separate from observations. Playback reads saved events, while rerun executes the simulation again from the recorded configuration and commands.
@@ -73,13 +77,13 @@ Run the Python tests from the repository root.
 uv run --locked pytest
 ```
 
-See the [getting started guide](docs/GETTING_STARTED.md) for headless commands and frontend tests.
+See the [getting started guide](docs/GETTING_STARTED.md) for headless commands and frontend tests. The [live ML demo](docs/LIVE_DEMO.md) trains its own model from seeded synthetic runs.
 
 ## Limitations
 
 - DemoCar uses synthetic classic CAN and simplified straight-line vehicle dynamics. The transport omits wire arbitration and physical bus behavior.
 - Studio serves one local simulation at a time, with bounded recordings and display buffers. Virtual-time determinism provides no wall-clock real-time guarantee.
-- Detector training and scoring are offline. The evaluation provides no evidence of reliability on real vehicle CAN traffic.
+- Detector training runs offline on synthetic data. Live scoring uses a trusted local Random Forest with a validation-selected threshold.
 
 ## Documentation
 
@@ -92,6 +96,6 @@ See the [getting started guide](docs/GETTING_STARTED.md) for headless commands a
 
 ## Roadmap
 
-Potential next steps include live scoring from the same causal feature pipeline, broader synthetic evaluation across normal driving regimes, and a packaged dashboard distribution. See the [roadmap](docs/ROADMAP.md) for scope and status.
+Potential next steps include broader synthetic evaluation across normal driving regimes and a packaged dashboard distribution. See the [roadmap](docs/ROADMAP.md) for scope and status.
 
 [Changelog](CHANGELOG.md) · [MIT license](LICENSE)

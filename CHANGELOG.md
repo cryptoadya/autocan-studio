@@ -9,6 +9,7 @@
 - Verified JSONL/Parquet exchange, receiver-specific observations with separate ground truth, and seeded dataset collections across six driving modes.
 - Offline causal feature generation, whole-run splits, and evaluation of fixed rules, Isolation Forest, and Random Forest with validation-selected model thresholds.
 - Held-out fault and normal-driving evaluations, event detection and false-alarm analysis, paired run-bootstrap intervals, and frozen inference measurements with a provenance check.
+- Seeded [live ML demo](docs/LIVE_DEMO.md) with local Random Forest training, fault injection, and recorded-score playback.
 
 ### Changed
 
