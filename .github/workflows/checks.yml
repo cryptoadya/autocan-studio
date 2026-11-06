@@ -5,6 +5,11 @@ on:
     branches: [main]
   push:
     branches: [main]
+    # Run full checks on the release candidate tag before publishing its release.
+    tags: ['v*']
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
 
 # Each PR supersedes its own older runs. Each main push gets its own group.
 concurrency:
@@ -19,11 +24,12 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       python: ${{ steps.scope.outputs.python }}
+      python_full: ${{ steps.scope.outputs.python_full }}
       frontend: ${{ steps.scope.outputs.frontend }}
       browser: ${{ steps.scope.outputs.browser }}
     steps:
       - uses: actions/checkout@v7.0.1
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch')
         with:
           fetch-depth: 2
       - name: Select checks
@@ -31,15 +37,18 @@ jobs:
         shell: bash
         env:
           EVENT: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          REF_TYPE: ${{ github.ref_type }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           python=false
+          python_full=false
           frontend=false
           browser=false
           changed=$(mktemp)
-          # Compare the exact PR merge tree under test with its base parent.
-          # Include both sides of renames. Main and uncertain diffs run everything.
-          if [[ "$EVENT" == pull_request && "$(git rev-parse --verify HEAD^1)" == "$BASE_SHA" ]] &&
+          # Only narrow checks when the event base is the checked-out tree's first
+          # parent. Include both sides of renames and fall back to full checks.
+          if [[ "$EVENT" == pull_request || ( "$EVENT" == push && "$REF_TYPE" == branch ) ]] &&
+             [[ "$(git rev-parse --verify HEAD^1)" == "$BASE_SHA" ]] &&
              git diff --no-renames --name-only -z "$BASE_SHA" HEAD > "$changed"; then
             while IFS= read -r -d '' path; do
               case "$path" in
@@ -55,28 +64,51 @@ jobs:
                 backend/autocan/ml_ood.py|backend/autocan/training_artifacts.py| \
                 backend/autocan/training_data.py|backend/autocan/training_split.py| \
                 backend/autocan/benchmark.py|backend/autocan/evaluation.py| \
-                backend/autocan/features.py|backend/autocan/model_artifacts.py| \
+                backend/autocan/model_artifacts.py| \
                 backend/autocan/ood.py|backend/autocan/preprocessing.py| \
                 backend/autocan/saved_evaluation.py|backend/autocan/score_artifacts.py| \
-                backend/autocan/score_events.py|backend/autocan/window_evaluation.py|tests/*)
+                backend/autocan/score_events.py|backend/autocan/window_evaluation.py| \
+                tests/test_acceptance.py|tests/test_benchmark.py| \
+                tests/test_inference_benchmark.py|tests/test_ml_ood.py| \
+                tests/test_ood.py|tests/test_training_data.py|tests/conftest.py|tests/fixtures/*)
+                  python=true; python_full=true ;;
+                # Shared live/offline contracts and source data.
+                backend/autocan/features.py|backend/autocan/events.py|backend/autocan/traces.py| \
+                backend/autocan/parquet.py|backend/autocan/factory.py|backend/autocan/scenarios.py| \
+                backend/autocan/dbc.py|backend/autocan/network_profile.py| \
+                backend/autocan/validation.py|backend/autocan/profiles/*|scenarios/*)
+                  python=true; python_full=true; browser=true ;;
+                tests/*)
                   python=true ;;
-                backend/*|scenarios/*)
+                .github/workflows/checks.yml)
+                  python=true; frontend=true; browser=true ;;
+                # Known runtime-only paths. Unclassified backend modules get full checks.
+                backend/autocan/api/__init__.py|backend/autocan/api/launch.py| \
+                backend/autocan/api/live_features.py|backend/autocan/api/observation.py| \
+                backend/autocan/api/runtime.py|backend/autocan/api/timeline.py| \
+                backend/autocan/bus.py|backend/autocan/catalog.py|backend/autocan/clock.py| \
+                backend/autocan/ecu.py|backend/autocan/faults.py|backend/autocan/network_ecu.py| \
+                backend/autocan/network_runtime.py|backend/autocan/simulation.py| \
+                backend/autocan/vehicle.py)
                   python=true; browser=true ;;
                 frontend/*.py)
                   python=true; frontend=true; browser=true ;;
                 frontend/*)
                   frontend=true; browser=true ;;
                 *)
-                  # Workflow, locks, shared config, frozen evidence and new roots.
-                  python=true; frontend=true; browser=true ;;
+                  # Locks, shared config, frozen evidence and new roots.
+                  python=true; python_full=true; frontend=true; browser=true ;;
               esac
             done < "$changed"
           else
             python=true
+            python_full=true
             frontend=true
             browser=true
           fi
-          printf 'python=%s\nfrontend=%s\nbrowser=%s\n' "$python" "$frontend" "$browser" >> "$GITHUB_OUTPUT"
+          printf 'python=%s\npython_full=%s\nfrontend=%s\nbrowser=%s\n' \
+            "$python" "$python_full" "$frontend" "$browser" >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
 
   docs:
     runs-on: ubuntu-latest
@@ -113,7 +145,18 @@ jobs:
         run: uv run --locked mypy
       - name: Build source and wheel distributions
         run: uv build --no-sources
-      - name: Tests
+      - name: Fast tests
+        if: needs.changes.outputs.python_full == 'false'
+        run: >-
+          uv run --locked pytest --durations=20
+          --ignore=tests/test_acceptance.py
+          --ignore=tests/test_benchmark.py
+          --ignore=tests/test_inference_benchmark.py
+          --ignore=tests/test_ml_ood.py
+          --ignore=tests/test_ood.py
+          --ignore=tests/test_training_data.py
+      - name: Full tests
+        if: needs.changes.outputs.python_full == 'true'
         run: uv run --locked pytest --durations=20
 
   frontend:
