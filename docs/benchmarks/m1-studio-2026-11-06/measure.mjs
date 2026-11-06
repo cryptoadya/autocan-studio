@@ -4,9 +4,11 @@ import {createWriteStream, readFileSync, readdirSync, statSync, writeFileSync} f
 import {setTimeout as delay} from 'node:timers/promises'
 import {pathToFileURL} from 'node:url'
 
-const [repo, scratch] = process.argv.slice(2)
+const [repo, scratch, modelRoot, mode] = process.argv.slice(2)
+assert(mode === undefined || mode === '--auto-save', 'Expected --auto-save or no mode')
+const autoSave = mode === '--auto-save'
 const {chromium} = await import(pathToFileURL(repo + '/frontend/node_modules/playwright/index.mjs'))
-const inputs = process.argv[4] ?? repo + '/data/recovered/m9-pr17-pytest272'
+const inputs = modelRoot ?? repo + '/data/recovered/m9-pr17-pytest272'
 const origin = 'http://127.0.0.1:18765'
 const server = spawn(repo + '/.venv/bin/autocan', [
   'studio', '--port', '18765', '--trusted-model', ...['experiment', 'prepared', 'source'].map(p => inputs + '/' + p),
@@ -53,13 +55,16 @@ try {
   const initial = await (await created).json()
   console.log('Recording', initial.id)
   await page.getByText('Scoring active', {exact: true}).waitFor()
-  await page.waitForFunction(() => Number.parseFloat(document.querySelector('.sim-time').textContent) >= 77,
-    undefined, {timeout: 240_000})
-  await page.getByRole('button', {name: 'Stop & save', exact: true}).click()
-  await page.locator('footer').getByText(/^Saved ·/).waitFor()
-  assert(terminal.sim_time_ns >= 77e9 && terminal.sim_time_ns < 78e9)
+  if (!autoSave) {
+    await page.waitForFunction(() => Number.parseFloat(document.querySelector('.sim-time').textContent) >= 77,
+      undefined, {timeout: 240_000})
+    await page.getByRole('button', {name: 'Stop & save', exact: true}).click()
+  }
+  await page.locator('footer').getByText(/^Saved ·|^Recording failed ·/).waitFor({timeout: 360_000})
   const endSeconds = terminal.sim_time_ns / 1e9
-  assert.equal(terminal.recording, 'saved')
+  assert.equal(terminal.recording, 'saved', terminal.error)
+  if (autoSave) assert.equal(endSeconds, 120)
+  else assert(endSeconds >= 77 && endSeconds < 78)
   sampleRss()
   phase = 'playback'
   const saved = page.getByLabel('Saved recording')
@@ -68,7 +73,7 @@ try {
   const playback = []
   const score = page.getByTestId('anomaly-score')
   for (let trial = 1; trial <= 5; trial++) {
-    for (const target of [endSeconds, 60, 76]) {
+    for (const target of [endSeconds, 60, autoSave ? 119 : 76]) {
       const action = target === endSeconds
         ? page.getByRole('button', {name: 'Load playback', exact: true})
         : page.getByRole('slider', {name: 'Playback position'})
@@ -120,7 +125,7 @@ try {
   assert.equal(end_time_ns, terminal.sim_time_ns)
   const trace = {status, end_time_ns, semantic_sha256, artifacts, live_model}
   const result = {revision: execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], {encoding: 'utf8'}).trim(), browser: browser.version(), seed: 42, profile: 'democar-network', live: {
-    wallSeconds: round((ended - runStart) / 1000), stopTargetNs: 77e9, messages: frames.length,
+    wallSeconds: round((ended - runStart) / 1000), stopTargetNs: autoSave ? 120e9 : 77e9, messages: frames.length,
     receiveGapMs: stats(frames.slice(1).map(f => f.gap)), payloadBytes: stats(frames.map(f => f.bytes)),
     skippedFrames: frames.reduce((total, frame) => total + frame.skipped, 0),
     retained: {frames: current.frames.length, signals: current.signals.length, scores: current.anomaly.scores.length, alerts: current.anomaly.alerts.length},

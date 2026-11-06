@@ -113,9 +113,10 @@ than trusting declared metadata. See the [trace and dataset verification record]
 counts its manifest and all artifacts; import bounds both the complete bundle
 and reconstructed trace artifacts. Parquet footers and decoded table sizes
 are bounded separately (64 MiB decoded per table, at most 256 rows per group).
-The live JSONL recorder retains its existing 16 MiB limit. An export may need
-more space than its source JSONL because of table metadata and provenance;
-reduce run duration when it cannot fit the limit.
+Studio JSONL recordings can reach 32 MiB. Parquet conversion requires source
+JSONL artifacts of at most 16 MiB. An export may need more space than its source
+JSONL because of table metadata and provenance. Record a shorter run if the
+source or export exceeds the exchange limit.
 
 Conversion stages in a private temporary sibling directory and cleans staging
 on failure. The destination is reserved exclusively only after successful

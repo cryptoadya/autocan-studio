@@ -31,6 +31,7 @@ from autocan.validation import canonical_bytes, fields, integer, json_object, nu
 
 CORE_VERSION = "m6-faults-1"
 DEFAULT_MAX_BYTES = 16 * 1024 * 1024
+MAX_TRACE_BYTES = 32 * 1024 * 1024
 MAX_MANIFEST_BYTES = 64 * 1024
 MAX_LINE_BYTES = 64 * 1024
 STREAMS = ("events.jsonl", "commands.jsonl", "faults.jsonl")
@@ -138,8 +139,8 @@ class TraceRecorder:
 
     def __init__(self, path: Path, *, max_bytes: int = DEFAULT_MAX_BYTES) -> None:
         integer(max_bytes, "max_bytes", minimum=4096)
-        if max_bytes > DEFAULT_MAX_BYTES:
-            raise TraceError("trace quota exceeds the supported import limit")
+        if max_bytes > MAX_TRACE_BYTES:
+            raise TraceError("trace quota exceeds the supported JSONL limit")
         self.path = path
         self._limit = max_bytes
         self._files: dict[str, BinaryIO] = {}
@@ -340,7 +341,7 @@ def _safe_file(root: Path, name: str) -> Path:
     return path
 
 
-def _read_meta(root: Path) -> dict[str, object]:
+def _read_meta(root: Path, *, max_bytes: int) -> dict[str, object]:
     path = _safe_file(root, "manifest.json")
     with path.open("rb") as stream:
         raw = stream.read(MAX_MANIFEST_BYTES + 1)
@@ -433,7 +434,7 @@ def _read_meta(root: Path) -> dict[str, object]:
         size = integer(stat["bytes"], "artifact size")
         integer(stat["records"], "record count")
         total += size
-        if total > DEFAULT_MAX_BYTES:
+        if total > max_bytes:
             raise TraceError("trace exceeds import size limit")
         artifact = _safe_file(root, name)
         if artifact.stat().st_size != size:
@@ -669,9 +670,9 @@ def _ordered_events(root: Path) -> Iterator[dict[str, object]]:
     )
 
 
-def verify_trace(root: Path) -> dict[str, object]:
+def verify_trace(root: Path, *, max_bytes: int = MAX_TRACE_BYTES) -> dict[str, object]:
     try:
-        meta = _read_meta(root)
+        meta = _read_meta(root, max_bytes=min(max_bytes, MAX_TRACE_BYTES))
         digest = sha256()
         previous_seq = previous_time = frame_seq = command_seq = 0
         pending: dict[tuple[int, str], int] = {}

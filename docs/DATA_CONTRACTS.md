@@ -331,10 +331,11 @@ Directory creation is exclusive. Manifest status begins `recording`, becomes
 `complete` only after finalization, and becomes `failed` on a caught recording
 failure. A process interruption leaves `recording`, which is rejected as
 incomplete. The recorder checks run identity/event count to reject reset during
-a recording; existing runs are never overwritten. Artifact bytes are capped at
-16 MiB (configurable downward); manifest/JSONL line caps are 64 KiB. Import uses
-fixed artifact names, rejects symlinks and validates sizes, checksums, schema,
-ordering and semantic hash before playback yields any events.
+a recording; existing runs are never overwritten. The JSONL artifact ceiling
+is 32 MiB, with a 16 MiB default for headless recordings and 64 KiB caps on the
+manifest and individual JSONL lines. Verification uses fixed artifact names,
+rejects symlinks and validates sizes, checksums, schema, ordering and the semantic
+hash before playback yields any events.
 
 Playback does not instantiate Simulation and tolerates a different current core.
 Rerun requires matching core/profile hashes and runtime versions, replays the
@@ -406,8 +407,9 @@ blocked for 1 s disconnects. A client must replace its view with the reconnect
 snapshot. The server reports any skipped display deliveries; it does not drop
 canonical recording events. Commands/fault ground truth remain in separate artifacts. A recording quota failure stops the run rather than losing events.
 
-API sessions are limited to 120 virtual seconds, 256 commands and the existing
-16 MiB trace quota. Creation stops at 64 entries under the configured run root.
+API sessions save automatically at 120 virtual seconds. They are limited to
+256 commands and 32 MiB of trace artifacts. Creation stops at 64 entries
+under the configured run root.
 HTTP POST/PATCH bodies are capped at 4096 bytes. The source launcher bounds
 concurrent connections to 32 and incoming WS messages/queues to 4096 bytes / 8.
 Parquet exchange and arbitrary JSON scenarios are headless CLI workflows.

@@ -230,7 +230,7 @@ def export_trace(
 ) -> dict[str, object]:
     """Export one verified run as typed frames/deliveries plus lossless other events."""
     _quota(max_bytes)
-    trace_meta = verify_trace(source)
+    trace_meta = verify_trace(source, max_bytes=DEFAULT_MAX_BYTES)
     with _new_output(target) as staging:
         (staging / "profile.dbc").write_bytes(_safe_file(source, "profile.dbc").read_bytes())
         _copy_scores(source, staging, trace_meta)
@@ -453,7 +453,7 @@ def export_observer(
 ) -> dict[str, object]:
     """Only wire fields and receipt time enter observations; truth is separate."""
     _quota(max_bytes)
-    trace_meta = verify_trace(source)
+    trace_meta = verify_trace(source, max_bytes=DEFAULT_MAX_BYTES)
     network = trace_meta["profile_version"] == "democar-0.2.0"
     if receiver_id not in (RECEIVERS if network else ("KOMBI",)):
         raise TraceError("unsupported receiver for this profile")
@@ -567,7 +567,7 @@ def verify_exports(
 ) -> tuple[dict[str, object], dict[str, object]]:
     """Check derived schemas/hashes and compare every row with its verified source."""
     try:
-        trace_meta = verify_trace(trace)
+        trace_meta = verify_trace(trace, max_bytes=DEFAULT_MAX_BYTES)
         bundle_meta = _read_export(bundle, DEFAULT_MAX_BYTES)
         observed = _read_export(observer, DEFAULT_MAX_BYTES, observer=True)
         if bundle_meta["trace_manifest"] != trace_meta or observed["trace_manifest"] != trace_meta:

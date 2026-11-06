@@ -148,3 +148,35 @@ cache. RSS is sampled for Studio's Python server process and excludes
 Chrome, npm and other processes. Sampling can miss transient peaks. These
 measurements do not establish real-time guarantees, memory stability over
 multiple sessions or behavior at the command or connection quotas.
+
+## Follow-up at the 32 MiB Studio limit
+
+From a checkout with the larger JSONL limit, use the same setup as above
+with a fresh capture directory. Run the driver with `--auto-save` to let
+Studio reach 120 virtual seconds without clicking **Stop & save**.
+
+```sh
+capture=$(mktemp -d /tmp/autocan-m11-full.XXXXXX)
+ln -s "$PWD/frontend" "$capture/frontend"
+node docs/benchmarks/m1-studio-2026-11-06/measure.mjs "$PWD" "$capture" "$m9" --auto-save
+```
+
+The driver requires automatic save at exactly 120 s, checks that the
+recording appears in the saved list, then loads the end and seeks to 60 s
+and 119 s five times each. It compares the final anomaly snapshot with
+live and checks the score and displayed timestamp at each seek.
+
+On the same M1 and Chrome 156.0.8078.80 with seed 42 and the frozen M9
+model above, Studio saved at **120.00 virtual seconds** after
+**142.16 s wall time**. The trace contains
+**97,259 canonical events** and
+**1,200 score samples**, using
+**25,807,072 bytes (24.61 MiB)** of the 32 MiB budget.
+Sampled server RSS peaked at 160.1 MiB across live and playback.
+
+All 15 playback requests returned HTTP 200. Median UI confirmation took
+3.692 s to load the end, 3.150 s to seek to 60 s and
+3.659 s to seek to 119 s. The full playback score and alert
+state matched live. Chrome reported no page or console errors.
+The canonical event digest was
+`0557d448079f12f57ad773e533af610de55fe8750de5ec477839b91ac834a76b`.
