@@ -90,8 +90,8 @@ Generated recordings remain local and ignored.
 
 ## Visual demonstration and limits
 
-[Browser demo GIF](images/m4-demo.gif), [full-resolution video](images/m4-demo.webm)
-and [playback/rerun screenshot](images/m4-playback-rerun.png) come from the passing
+[Browser demo GIF](../images/m4-demo.gif), [full-resolution video](../images/m4-demo.webm)
+and [playback/rerun screenshot](../images/m4-playback-rerun.png) come from the passing
 clean-copy browser run. The recording shows manual controls, saved-time deadline
 checks and a matching rerun; its action timings are not the fixed CLI scenario.
 Regenerate it with `AUTOCAN_DEMO=1 npm --prefix frontend run test:e2e`; videos and

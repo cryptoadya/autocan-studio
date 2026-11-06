@@ -1,10 +1,15 @@
-# M6 fault library and scenarios
+# Simulation and faults
 
-M6 provides fault injection for `democar-network`, strict JSON scenarios, CLI
-and API/UI parameters, a bounded timeline, applied-command recording and
-deterministic rerun. The three demonstrations run through both CLI and dashboard.
-Existing M5 publication controls remain independent. No dataset, ML detector,
-arbitrary scenario upload or raw-payload corruption is included.
+The dashboard selects `democar-network`, with five ECUs and eight CAN
+messages. Headless commands also support the original `democar` profile.
+That profile remains the default for `demo`, `shell`, and API requests
+that omit a profile. See the [profile and timing contracts](DATA_CONTRACTS.md).
+
+The network profile supports eight fault types through strict JSON scenarios,
+the CLI, and the local API and dashboard. Physical engine controls, manual ECU
+publication controls, and fault injections are recorded as distinct commands.
+Playback restores a bounded fault timeline from saved events. For offline
+detection against fault ground truth, see [ML evaluation](ML_EVALUATION.md).
 
 ## Run three synthetic demonstrations
 
@@ -26,7 +31,7 @@ rerun uses the manifest and applied commands without the original scenario file.
   380 ms and FRESH at 500 ms. This tests received-data availability.
 - **RPM spike:** during `[100, 200)` ms EngineStatus carries 7000 RPM, within
   the DBC's 0–8000 range. The physical RPM continues normally; after clear,
-  EngineStatus returns to its measured value. No anomaly detector is claimed.
+  EngineStatus returns to its measured value.
 - **Timing jitter:** EngineStatus uses a 60 ms publication interval and an
   independent uniform integer delivery delay of 0–60 ms during `[100, 300)` ms.
   Frame creation times and payloads remain intact. Clearing preserves the next
@@ -72,7 +77,7 @@ actual end time rather than running the unused remainder of the preset.
 | `POST /api/simulations` with `scenario_id`, optional `seed` | Create the selected scenario paused; infer its network profile. An explicitly conflicting profile is rejected. Then POST its `/start` action. |
 | `POST /api/simulations/{id}/faults` with `{"fault": {...}}` | Validate the library specification and reserve one command; return `applied_at_ns`. |
 | `POST /api/simulations/{id}/faults/{fault_id}/clear` | Reserve a clear command and return its canonical time. |
-| Existing `POST .../faults` with `{"offline": true, "ecu_id": "abs"}` | Retain the M5 manual publication gate. |
+| Existing `POST .../faults` with `{"offline": true, "ecu_id": "abs"}` | Control the manual publication gate. |
 
 Requests retain strict types, unknown-field rejection, the 4096-byte body limit,
 same-origin/loopback access and the shared 256-command quota. Scenario commands
@@ -85,7 +90,7 @@ and `timeline_truncated`. The latest 100 relevant events include applied driver
 commands, activation/clear, rejected fault commands and KOMBI freshness changes.
 Older events are explicitly counted as omitted; the canonical recording remains
 complete. The up-to-32 active library faults are retained independently of this
-window. M5 offline markers appear in the timeline, while their publication gates
+window. Manual offline markers appear in the timeline, while their publication gates
 remain controlled by the existing buttons. Ground truth is labelled separately
 from received CAN measurements and is not an input to any detector.
 
@@ -148,7 +153,7 @@ value must remain in the declared DBC range; otherwise simulation fails explicit
 and a recording is marked failed. Values are never clipped or wrapped. Synthetic
 measurement faults do not change VehicleModel or grant receivers hidden inputs.
 Network CAN feedback can affect Transmission's gear decisions as described in the
-M5 contracts. ABS's own consistency flag remains its sensor-derived report; the
+the base DBC contract. ABS's own consistency flag remains its sensor-derived report; the
 cross-signal fault changes the transmitted wheel measurement, not that report.
 
 ## Simultaneous faults, timing and clear
@@ -215,29 +220,4 @@ delivery timing for these scenarios. They are compact trace projections rather
 than full run manifests; integration tests additionally record, verify and rerun
 each demonstration through the actual CLI.
 
-## Local M6 verification — 2026-10-31
-
-- `uv run --locked ruff check .`, `uv run --locked ruff format --check .`,
-  `uv run --locked mypy`, `uv run --locked pytest -q`: passed, 278 Python tests.
-- `uv build --no-sources`: source distribution and wheel built successfully.
-- `npm --prefix frontend run typecheck`, `npm --prefix frontend test`,
-  `npm --prefix frontend run build`: passed, 23 frontend tests.
-- `npm --prefix frontend run test:e2e`: eight Chromium tests passed against the
-  production build and actual API/core. Three cover scenario effects in playback
-  and matching rerun; one covers paused manual injection, reload, clear, saved
-  commands and reset; four retain the M5/vertical-slice acceptance.
-- Desktop 1280×900 and mobile 390×844 rendering were checked, with page identity,
-  meaningful content, interaction assertions, no application console errors or
-  framework overlay, screenshots and no horizontal document overflow. The Browser
-  plugin was not available; the repository's Playwright workflow was used outside
-  the restrictive macOS sandbox with Chromium's own sandbox enabled.
-- A wheel installed in an isolated Python 3.12 environment under `/private/tmp`
-  loaded all three packaged scenarios without the source checkout.
-
-The browser pass caught duplicate React keys for the new panel and CAN Monitor;
-a regression test now checks that run replacement leaves one fault panel. Runtime
-DBC failures stop recording, while rejected commands on an already saved session
-preserve its saved status. All local M6 acceptance criteria are covered; remote
-CI, publication, other browsers and M7 are not claimed.
-
-![M6 RPM spike active at the 0.15 s playback position](images/m6-fault-scenarios.png)
+![RPM spike active at 0.15 s during playback](images/m6-fault-scenarios.png)

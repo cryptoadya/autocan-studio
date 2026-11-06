@@ -158,7 +158,7 @@ loads and validates this saved contract and evaluates fixed rules on its splits.
 The [fourth pass](ISOLATION_FOREST.md) fits the first IsolationForest and compares
 it with rules on the same frozen split. The [fifth pass](RANDOM_FOREST.md) adds
 RandomForestClassifier using the all-train state and a joint comparison.
-[Frozen-artifact acceptance](M9_ACCEPTANCE.md) consolidates the subsequent
+[Frozen-artifact acceptance](../archive/M9_ACCEPTANCE.md) consolidates the subsequent
 evaluation evidence without new fitting or scores. Broader operating-regime
 validation remains unestablished. Model and threshold selection stays on validation; final test/OOD must remain outside
 selection. Applying a frozen preprocessor to OOD will not permit refitting it.

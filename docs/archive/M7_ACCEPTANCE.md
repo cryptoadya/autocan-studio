@@ -75,7 +75,7 @@ environment, with no imports from the checkout. A macOS `/usr/bin/time -l` wrapp
 also returned an error when the Codex sandbox denied its `sysctl` query; the
 complete check was repeated successfully using Python timing/resource reporting.
 
-![Fresh local browser acceptance: saved playback and matching rerun](images/m7-studio-acceptance.png)
+![Fresh local browser acceptance: saved playback and matching rerun](../images/m7-studio-acceptance.png)
 
 ## Reproduce the M7 flow
 
