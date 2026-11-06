@@ -21,7 +21,8 @@ uv run --locked autocan playback data/rpm-spike
 uv run --locked autocan rerun data/rpm-spike
 ```
 
-Each output directory must be new. The existing 16 MiB recording quota applies.
+Each output directory must be new. The default headless recording quota is
+16 MiB. The `run` command can set `--max-bytes` up to the 32 MiB JSONL ceiling.
 Playback verifies the saved artifacts and displays their merged canonical events;
 rerun uses the manifest and applied commands without the original scenario file.
 

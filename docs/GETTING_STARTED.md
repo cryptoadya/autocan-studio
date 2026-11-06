@@ -28,8 +28,9 @@ startup requires the frontend sources in the checkout.
   that events and final state match. **Return to live** restores live controls.
 - **Reset · new recording** saves the active run and starts fresh. Recordings
   are stored under ignored `data/runs/`. The dashboard limits each run to
-  120 virtual seconds, 256 input commands, and 16 MiB, with at most 64 entries
-  in the run directory. Move old runs out of that directory to free capacity.
+  120 virtual seconds, 256 input commands, and 32 MiB of trace artifacts.
+  Studio saves automatically at the duration limit. The run directory accepts
+  up to 64 entries. Move old runs out of that directory to free capacity.
 
 Use [Simulation and faults](SIMULATION.md) for built-in scenarios, timelines,
 and the fault API.

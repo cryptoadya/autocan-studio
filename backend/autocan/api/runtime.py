@@ -18,7 +18,14 @@ from autocan.faults import FaultSpec, fault_id
 from autocan.features import FeatureConfig, FeatureWindow
 from autocan.scenarios import Scenario
 from autocan.simulation import Simulation
-from autocan.traces import ScoreSample, TraceRecorder, playback, recorded_scores, verify_trace
+from autocan.traces import (
+    MAX_TRACE_BYTES,
+    ScoreSample,
+    TraceRecorder,
+    playback,
+    recorded_scores,
+    verify_trace,
+)
 from autocan.validation import integer, object_value
 from autocan.vehicle import validate_brake, validate_gear, validate_ignition, validate_throttle
 
@@ -99,7 +106,7 @@ class Session:
         )
         self.id = self.sim.run_id
         try:
-            self.recorder = TraceRecorder(root / self.id)
+            self.recorder = TraceRecorder(root / self.id, max_bytes=MAX_TRACE_BYTES)
             self.recorder.begin(
                 self.sim, scenario=scenario_info, live_model=model.provenance if model else None
             )

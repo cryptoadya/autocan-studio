@@ -186,11 +186,14 @@ def test_api_body_and_run_command_limits_are_explicit(tmp_path: Path) -> None:
         session.close()
 
 
-def test_duration_limit_finalizes_a_complete_reproducible_recording(tmp_path: Path) -> None:
+@pytest.mark.parametrize("profile_id", ["democar", "democar-network"])
+def test_duration_limit_finalizes_a_complete_reproducible_recording(
+    tmp_path: Path, profile_id: str
+) -> None:
     from autocan.api.runtime import Session
     from autocan.traces import rerun
 
-    session = Session(tmp_path, seed=42)
+    session = Session(tmp_path, seed=42, profile_id=profile_id)
     try:
         session.start()
         for _ in range(2401):
