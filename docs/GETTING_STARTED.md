@@ -12,7 +12,8 @@ uv run --locked autocan studio
 Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Pass `--port 8001` for an
 alternate local port. The launcher installs locked frontend dependencies and
 builds the UI. The Python wheel provides the headless CLI and API. Dashboard
-startup requires the frontend sources in the checkout.
+startup requires the frontend sources in the checkout. Use the
+[live ML demo](LIVE_DEMO.md) to train and load a model from synthetic data.
 
 - **Run demo** starts a fresh recording. Move and release **Throttle** to apply
   the request. **Take offline** suppresses Engine ECU publication so the cluster
