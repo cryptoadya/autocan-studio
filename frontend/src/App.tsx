@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { request, useLiveSocket } from './api'
 import { useStudio } from './store'
 import { Dashboard } from './components/Dashboard'
+import { AnomalyChart } from './components/AnomalyChart'
 import { MotionControls } from './components/MotionControls'
 import { NetworkPanel } from './components/NetworkPanel'
 import { SignalChart } from './components/SignalChart'
@@ -135,6 +136,7 @@ export function App() {
         onGear={gear => command('inputs', 'PATCH', {gear})} />
       {view?.state.profile_id === 'democar-network' && <NetworkPanel state={view.state} disabled={disabled}
         onOffline={(ecu_id, offline) => command('faults', 'POST', {ecu_id, offline})} />}
+      {view?.state.profile_id === 'democar-network' && <AnomalyChart view={view} />}
       <FaultLab key={`faults-${view?.id}-${view?.mode}`} catalog={faultCatalog} view={view}
         disabled={disabled || view?.state.profile_id !== 'democar-network'}
         onInject={fault => command('faults', 'POST', {fault})}

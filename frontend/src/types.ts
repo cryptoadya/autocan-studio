@@ -50,6 +50,14 @@ export interface Frame {
   created_at_ns?: number
 }
 export interface Signal { sim_time_ns: number; rpm: number | null; status: Freshness }
+export interface AnomalyView {
+  model: {model_id: string; model_sha256: string; threshold: number; feature_schema_version: number}
+  scores: {
+    sim_time_ns: number; score: number; eligible: boolean; timed_out_can_ids: number[]
+    rpm_derivative_max: number | null; wheel_residual_max: number | null
+  }[]
+  alerts: {start_ns: number; end_ns: number | null; peak_score: number}[]
+}
 export interface Snapshot {
   id: string
   mode: 'live' | 'playback'
@@ -65,6 +73,7 @@ export interface Snapshot {
   active_faults?: ActiveFault[]
   timeline?: TimelineEvent[]
   timeline_truncated?: number
+  anomaly?: AnomalyView | null
 }
 export interface WireMessage extends Snapshot {
   type: 'snapshot' | 'frames_batch'

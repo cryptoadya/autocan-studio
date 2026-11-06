@@ -1,11 +1,54 @@
 """Bounded demo ground truth, kept apart from decoded CAN measurements."""
 
 from collections import deque
-from typing import Any
+from typing import Any, TypedDict
 
-from autocan.validation import json_object
+from autocan.traces import ScoreSample
+from autocan.validation import json_object, number
 
 TIMELINE_LIMIT = 100
+SCORE_VIEW_LIMIT = 240
+
+
+class AlertEpisode(TypedDict):
+    start_ns: int
+    end_ns: int | None
+    peak_score: float
+
+
+class AnomalyTimeline:
+    def __init__(self, model: dict[str, object]) -> None:
+        self.model = model
+        self.threshold = number(model["threshold"], "model threshold", minimum=0, maximum=1)
+        self.scores: deque[ScoreSample] = deque(maxlen=SCORE_VIEW_LIMIT)
+        self.alerts: deque[AlertEpisode] = deque(maxlen=TIMELINE_LIMIT)
+        self._active: AlertEpisode | None = None
+        self._below = 0
+
+    def consume(self, sample: ScoreSample) -> None:
+        self.scores.append(sample)
+        if not sample["eligible"]:
+            return
+        score = sample["score"]
+        if score >= self.threshold:
+            self._below = 0
+            if self._active is None:
+                self._active = {
+                    "start_ns": sample["sim_time_ns"],
+                    "end_ns": None,
+                    "peak_score": score,
+                }
+                self.alerts.append(self._active)
+            else:
+                self._active["peak_score"] = max(self._active["peak_score"], score)
+        elif self._active is not None:
+            self._below += 1
+            if self._below == 2:
+                self._active["end_ns"] = sample["sim_time_ns"]
+                self._active = None
+
+    def snapshot(self) -> dict[str, object]:
+        return {"model": self.model, "scores": list(self.scores), "alerts": list(self.alerts)}
 
 
 class FaultTimeline:
