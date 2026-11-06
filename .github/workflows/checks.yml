@@ -1,12 +1,98 @@
 name: Checks
 
-on: [push, pull_request]
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Each PR supersedes its own older runs. Each main push gets its own group.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('main-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.scope.outputs.python }}
+      frontend: ${{ steps.scope.outputs.frontend }}
+      browser: ${{ steps.scope.outputs.browser }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 2
+      - name: Select checks
+        id: scope
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python=false
+          frontend=false
+          browser=false
+          changed=$(mktemp)
+          # Compare the exact PR merge tree under test with its base parent.
+          # Include both sides of renames. Main and uncertain diffs run everything.
+          if [[ "$EVENT" == pull_request && "$(git rev-parse --verify HEAD^1)" == "$BASE_SHA" ]] &&
+             git diff --no-renames --name-only -z "$BASE_SHA" HEAD > "$changed"; then
+            while IFS= read -r -d '' path; do
+              case "$path" in
+                README.md|CHANGELOG.md|docs/*.md|docs/images/*.png|docs/images/*.gif|docs/images/*.webm)
+                  ;;
+                # Offline-only modules. Revisit if the API or simulator starts using one.
+                backend/autocan/acceptance.py|backend/autocan/acceptance_artifacts.py| \
+                backend/autocan/acceptance_runtime.py|backend/autocan/bootstrap.py| \
+                backend/autocan/bootstrap_benchmark.py|backend/autocan/event_benchmark.py| \
+                backend/autocan/inference_benchmark.py|backend/autocan/ood_benchmark.py| \
+                backend/autocan/window_benchmark.py|backend/autocan/isolation_forest.py| \
+                backend/autocan/random_forest.py|backend/autocan/ml_experiment.py| \
+                backend/autocan/ml_ood.py|backend/autocan/training_artifacts.py| \
+                backend/autocan/training_data.py|backend/autocan/training_split.py| \
+                backend/autocan/benchmark.py|backend/autocan/evaluation.py| \
+                backend/autocan/features.py|backend/autocan/model_artifacts.py| \
+                backend/autocan/ood.py|backend/autocan/preprocessing.py| \
+                backend/autocan/saved_evaluation.py|backend/autocan/score_artifacts.py| \
+                backend/autocan/score_events.py|backend/autocan/window_evaluation.py|tests/*)
+                  python=true ;;
+                backend/*|scenarios/*)
+                  python=true; browser=true ;;
+                frontend/*.py)
+                  python=true; frontend=true; browser=true ;;
+                frontend/*)
+                  frontend=true; browser=true ;;
+                *)
+                  # Workflow, locks, shared config, frozen evidence and new roots.
+                  python=true; frontend=true; browser=true ;;
+              esac
+            done < "$changed"
+          else
+            python=true
+            frontend=true
+            browser=true
+          fi
+          printf 'python=%s\nfrontend=%s\nbrowser=%s\n' "$python" "$frontend" "$browser" >> "$GITHUB_OUTPUT"
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version-file: .python-version
+      - name: Validate local Markdown links and images
+        run: |
+          python -m pip install --disable-pip-version-check markdown-it-py==4.0.0 mdurl==0.1.2
+          python .github/scripts/check_docs.py
+
   python:
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
@@ -25,12 +111,14 @@ jobs:
         run: uv run --locked ruff format --check .
       - name: Typecheck
         run: uv run --locked mypy
-      - name: Tests
-        run: uv run --locked pytest
       - name: Build source and wheel distributions
         run: uv build --no-sources
+      - name: Tests
+        run: uv run --locked pytest --durations=20
 
   frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -45,9 +133,11 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - run: npm run build
+      # The browser job builds and tests the production bundle.
 
   browser:
+    needs: changes
+    if: needs.changes.outputs.browser == 'true'
     # Newer Ubuntu AppArmor defaults block the bundled Chromium user namespace.
     # Keep Chromium's sandbox enabled on a runner that supports it unchanged.
     runs-on: ubuntu-22.04
@@ -76,3 +166,37 @@ jobs:
           name: browser-acceptance
           path: frontend/test-results/
           retention-days: 7
+
+  ci-result:
+    name: CI result
+    needs: [changes, docs, python, frontend, browser]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require successful selected checks
+        shell: bash
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          DOCS_RESULT: ${{ needs.docs.result }}
+          PYTHON_SELECTED: ${{ needs.changes.outputs.python }}
+          PYTHON_RESULT: ${{ needs.python.result }}
+          FRONTEND_SELECTED: ${{ needs.changes.outputs.frontend }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          BROWSER_SELECTED: ${{ needs.changes.outputs.browser }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: |
+          require_result() {
+            local job="$1" selected="$2" result="$3"
+            case "$selected:$result" in
+              true:success|false:skipped) return 0 ;;
+              *) echo "::error::$job selected=$selected result=$result"; return 1 ;;
+            esac
+          }
+
+          failed=0
+          require_result changes true "$CHANGES_RESULT" || failed=1
+          require_result docs true "$DOCS_RESULT" || failed=1
+          require_result python "$PYTHON_SELECTED" "$PYTHON_RESULT" || failed=1
+          require_result frontend "$FRONTEND_SELECTED" "$FRONTEND_RESULT" || failed=1
+          require_result browser "$BROWSER_SELECTED" "$BROWSER_RESULT" || failed=1
+          exit "$failed"
