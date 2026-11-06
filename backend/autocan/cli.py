@@ -164,6 +164,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         command.add_argument("run_directory", type=Path)
     studio = commands.add_parser("studio", help="build and serve the local M3 dashboard")
     studio.add_argument("--port", type=int, default=8000)
+    studio.add_argument(
+        "--trusted-model",
+        nargs=3,
+        type=Path,
+        metavar=("EXPERIMENT", "PREPARED", "SOURCE"),
+        help="score live network runs with a trusted local M9 Random Forest bundle",
+    )
     generate = commands.add_parser("generate", help="generate a bounded, seeded driving dataset")
     generate.add_argument("--output", type=Path, required=True)
     generate.add_argument("--runs", type=int, default=24)
@@ -652,7 +659,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "studio":
             from autocan.api.launch import launch
 
-            return launch(port=args.port)
+            live_model = None
+            if args.trusted_model is not None:
+                from autocan.live_scoring import load_live_model
+
+                live_model = load_live_model(*args.trusted_model)
+            return launch(port=args.port, live_model=live_model)
         if args.command == "run":
             meta = record_scenario(
                 Scenario.load(args.scenario), args.output, max_bytes=args.max_bytes

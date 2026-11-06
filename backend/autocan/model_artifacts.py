@@ -194,11 +194,19 @@ def load_frozen_experiment(
         raise ValueError("unsupported frozen detector")
     frozen = inspect_frozen_experiment(root, data)
     metadata, states, seed = frozen.metadata, frozen.preprocessors, frozen.seed
+    inventory = object_value(frozen.manifest["artifacts"], "model inventory")
     models: dict[str, FittedModel] = {}
     for name in MODEL_IDS if detector is None else (detector,):
         model, state = metadata[name], states[name]
+        relative = f"models/{name}/model.pkl"
+        artifact = object_value(inventory[relative], "model artifact")
+        size = integer(artifact["bytes"], "model artifact size")
+        with _path(root, relative).open("rb") as stream:
+            payload = stream.read(size + 1)
+        if len(payload) != size or sha256(payload).hexdigest() != artifact["sha256"]:
+            raise TraceError(f"frozen model artifact checksum/size mismatch: {relative}")
         try:
-            estimator = pickle.loads((root / f"models/{name}/model.pkl").read_bytes())
+            estimator = pickle.loads(payload)
         except (pickle.UnpicklingError, EOFError, AttributeError, ImportError, ValueError) as exc:
             raise TraceError(f"invalid trusted model pickle: {name}") from exc
         kind = IsolationForest if name == MODEL_ID else RandomForestClassifier

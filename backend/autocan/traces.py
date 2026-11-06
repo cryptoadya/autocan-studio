@@ -11,7 +11,7 @@ from importlib.resources import files
 from itertools import groupby
 from pathlib import Path
 from types import TracebackType
-from typing import BinaryIO, Self
+from typing import BinaryIO, Self, TypedDict
 
 from autocan.dbc import profile_bytes, profile_from_version, profile_version
 from autocan.events import CanFrame, RunEvent, Scalar
@@ -39,6 +39,13 @@ FAULT_KINDS = {"FaultActivated", "FaultCleared", "FrameDropped"}
 
 class TraceError(ValueError):
     """An incomplete, incompatible, corrupt, or oversized recording."""
+
+
+class LiveModelProvenance(TypedDict):
+    model_id: str
+    model_sha256: str
+    threshold: float
+    feature_schema_version: int
 
 
 def _stream_name(kind: object) -> str:
@@ -141,7 +148,13 @@ class TraceRecorder:
             self._abort(str(exc))
             raise
 
-    def begin(self, sim: Simulation, *, scenario: dict[str, object] | None = None) -> None:
+    def begin(
+        self,
+        sim: Simulation,
+        *,
+        scenario: dict[str, object] | None = None,
+        live_model: LiveModelProvenance | None = None,
+    ) -> None:
         if (
             self._started
             or self._finished
@@ -177,6 +190,8 @@ class TraceRecorder:
         self._started = True
         if scenario is not None:
             self._meta["scenario"] = dict(scenario)
+        if live_model is not None:
+            self._meta["live_model"] = dict(live_model)
         self._save_manifest()
 
     def write(self, event: RunEvent) -> None:
@@ -326,7 +341,7 @@ def _read_meta(root: Path) -> dict[str, object]:
             "semantic_sha256",
             "artifacts",
         },
-        {"scenario"},
+        {"scenario", "live_model"},
     )
     if (
         integer(meta["format_version"], "format version") != 1
@@ -350,6 +365,13 @@ def _read_meta(root: Path) -> dict[str, object]:
         ):
             raise TraceError("scenario profile mismatch")
         _hash(scenario["source_sha256"])
+    if "live_model" in meta:
+        model = object_value(meta["live_model"], "live model provenance")
+        fields(model, {"model_id", "model_sha256", "threshold", "feature_schema_version"})
+        _text(model["model_id"], "model ID")
+        _hash(model["model_sha256"])
+        number(model["threshold"], "model threshold", minimum=0, maximum=1)
+        integer(model["feature_schema_version"], "model feature schema version", minimum=1)
     _text(meta["run_id"], "run ID")
     _text(meta["core_version"], "core version")
     for name in ("core_sha256", "profile_sha256", "config_sha256", "semantic_sha256"):
