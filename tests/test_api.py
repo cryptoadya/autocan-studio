@@ -1,6 +1,9 @@
 """M3 boundary: real core, trace artifacts, isolation and reconnect snapshots."""
 
+import json
+from hashlib import sha256
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -164,6 +167,48 @@ def test_saved_view_uses_delivery_and_deadlines_on_the_live_sample_grid(tmp_path
     assert len(end["signals"]) == 400
     assert end["signals"][0]["sim_time_ns"] == 10_050_000_000
     assert end["signals"][-1]["sim_time_ns"] == 30_000_000_000
+
+
+def test_playback_seek_verifies_once_and_rejects_corruption_after_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from autocan import traces
+    from autocan.api import create_app
+    from autocan.scenarios import Scenario
+
+    path = tmp_path / ("a" * 32)
+    traces.record_scenario(
+        Scenario.from_dict({"schema_version": 1, "duration_ns": 200_000_000, "commands": []}),
+        path,
+    )
+    read_meta = Mock(wraps=traces._read_meta)
+    monkeypatch.setattr(traces, "_read_meta", read_meta)
+    seek = f"/api/runs/{path.name}/playback?until_ns=50000000"
+    with TestClient(create_app(data_root=tmp_path), base_url="http://127.0.0.1") as client:
+        response = client.get(seek)
+        assert response.status_code == 200
+        assert response.json()["sim_time_ns"] == 50_000_000
+        calls_for_valid_seek = read_meta.call_count
+
+        # Update the artifact's size and hash so the full event verification
+        # has to find the corruption beyond the requested position.
+        events = path / "events.jsonl"
+        lines = events.read_text().splitlines()
+        last = json.loads(lines[-1])
+        assert last["sim_time_ns"] > 50_000_000
+        last["event_seq"] += 1
+        lines[-1] = json.dumps(last)
+        raw = ("\n".join(lines) + "\n").encode()
+        events.write_bytes(raw)
+        manifest = path / "manifest.json"
+        meta = json.loads(manifest.read_text())
+        meta["artifacts"][events.name].update(bytes=len(raw), sha256=sha256(raw).hexdigest())
+        manifest.write_text(json.dumps(meta))
+
+        response = client.get(seek)
+        assert response.status_code == 409
+        assert response.json()["detail"] == "canonical event ordering mismatch"
+        assert calls_for_valid_seek == 1
 
 
 def test_api_body_and_run_command_limits_are_explicit(tmp_path: Path) -> None:

@@ -22,9 +22,8 @@ from autocan.traces import (
     MAX_TRACE_BYTES,
     ScoreSample,
     TraceRecorder,
-    playback,
+    open_playback,
     recorded_scores,
-    verify_trace,
 )
 from autocan.validation import integer, object_value
 from autocan.vehicle import validate_brake, validate_gear, validate_ignition, validate_throttle
@@ -268,7 +267,7 @@ class Session:
 
 
 def saved_view(path: Path, until_ns: int | None = None) -> dict[str, Any]:
-    meta = verify_trace(path)
+    meta, events = open_playback(path)
     end = integer(meta["end_time_ns"], "end time")
     target = end if until_ns is None else min(until_ns, end)
     database = Database(strict=True)
@@ -285,7 +284,7 @@ def saved_view(path: Path, until_ns: int | None = None) -> dict[str, Any]:
     # Only retain the final display window, even for a long CLI recording.
     first_sample = max(0, target - (SIGNAL_LIMIT - 1) * TICK_NS)
     next_sample = ((first_sample + TICK_NS - 1) // TICK_NS) * TICK_NS
-    for event in playback(path):
+    for event in events:
         event_time = integer(event["sim_time_ns"], "event time")
         if event_time > target:
             break

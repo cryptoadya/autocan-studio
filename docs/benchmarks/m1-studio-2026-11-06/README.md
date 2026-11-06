@@ -180,3 +180,28 @@ All 15 playback requests returned HTTP 200. Median UI confirmation took
 state matched live. Chrome reported no page or console errors.
 The canonical event digest was
 `0557d448079f12f57ad773e533af610de55fe8750de5ec477839b91ac834a76b`.
+
+## Follow-up with one verification per playback request
+
+The previous API path verified the full trace when opening the saved view
+and again when opening the event stream. Playback now opens the manifest
+and stream with one full verification. Even an early seek verifies events
+after the requested timestamp.
+
+The `--auto-save` command above was repeated on the same M1 with the same
+Chrome version, frozen M9 model and seed 42. The new recording saved at
+120.00 virtual seconds. Its canonical event digest and recorded score
+artifact checksum matched the previous 120-second capture. All 15 browser
+operations succeeded and the final playback anomaly snapshot matched live.
+
+| Action, five trials each | Prior median to UI confirmation | New median to UI confirmation | UI time reduction | Median request to first byte |
+| --- | ---: | ---: | ---: | ---: |
+| Load end | 3.692 s | 2.411 s | 34.7% | 3.642 → 2.359 s |
+| Seek to 60 s | 3.150 s | 1.839 s | 41.6% | 3.127 → 1.817 s |
+| Seek to 119 s | 3.659 s | 2.360 s | 35.5% | 3.638 → 2.341 s |
+
+Each capture used one local server, browser tab and recording. The UI
+times include Playwright dispatch and confirmation of the displayed
+position and score. The regression test changes an event after the seek
+target and updates the artifact checksum. The early seek still returns
+HTTP 409 for the invalid canonical event order.

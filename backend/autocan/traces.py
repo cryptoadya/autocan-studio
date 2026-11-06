@@ -734,10 +734,15 @@ def verify_trace(root: Path, *, max_bytes: int = MAX_TRACE_BYTES) -> dict[str, o
         raise TraceError(str(exc)) from exc
 
 
+def open_playback(root: Path) -> tuple[dict[str, object], Iterator[dict[str, object]]]:
+    """Verify the whole trace before exposing its manifest and event stream."""
+    return verify_trace(root), _ordered_events(root)
+
+
 def playback(root: Path) -> Iterator[dict[str, object]]:
     """Verify and display saved events; no Simulation is constructed."""
-    verify_trace(root)
-    yield from _ordered_events(root)
+    _, events = open_playback(root)
+    yield from events
 
 
 def rerun(root: Path) -> dict[str, object]:
