@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased — M7 final acceptance and provenance checks
+## [1.0.0] — 2026-11-06
+
+AutoCAN Studio V1 covers M0–M7: a five-ECU simulation, local dashboard,
+reproducible faults and recordings, Parquet exchange, and Dataset Factory.
+
+### M7 final acceptance and provenance checks
 
 - Recompute nested Parquet/observer schemas and semantic hashes during collection
   verification, comparing every event, observation and fault label to its source.
@@ -9,9 +14,8 @@
 - Add regression coverage for both verifier defects. Complete local M7 acceptance
   with full generated-collection round trips/reruns, Python/frontend/browser
   checks, built-wheel startup and a current acceptance report/screenshot.
-- No ML, version bump or release publication is included.
 
-## Unreleased — M7 driving modes and run collections
+### M7 driving modes and run collections
 
 - Add seeded idle, stop-and-go, city, cruise, braking and acceleration recipes,
   with balanced mode cycles and varied pedal strengths, timing and durations.
@@ -23,9 +27,8 @@
 - Add `generate` and `verify-dataset`, collection quotas and staged publication
   without overwriting. Cover physical mode effects, deterministic series, fresh
   reruns, Parquet reload, corruption and failed generation cleanup.
-- Feature windows, dataset splits and ML remain M8+. No V1 release is published.
 
-## Unreleased — M7 Parquet exchange and observer datasets (first pass)
+### M7 Parquet exchange and observer datasets (first pass)
 
 - Add streaming typed Parquet frames/deliveries and separate event, command and
   fault tables, preserving the original manifest, DBC, canonical events and hashes.
@@ -35,9 +38,8 @@
   fault labels and provenance. Exclude simulator internals from observation columns.
 - Bound row groups, import sizes and output quotas; reject corruption and symlink
   artifacts and exclusively reserve new output directories without overwriting.
-- Driving-mode/run generation remains the next M7 pass. No ML or V1 release.
 
-## Unreleased — M6 API/UI scenarios, faults and timeline
+### M6 API/UI scenarios, faults and timeline
 
 - Add a built-in scenario catalog, strict REST inject/clear, DBC-derived editor
   metadata and scenario sessions that save at their exact virtual duration.
@@ -53,7 +55,7 @@
   injection/clear, saved timelines, deterministic rerun and a mobile viewport.
   M6 local acceptance is documented in `docs/FAULTS.md`; M7 has not started.
 
-## Unreleased — M6 fault library and CLI scenarios (first pass)
+### M6 fault library and CLI scenarios (first pass)
 
 - Add eight validated network faults at encoding, scheduling and delivery
   boundaries, with independent seeded RNG, explicit DBC range errors, bounded
@@ -69,7 +71,7 @@
 - M6 remains in progress: API/UI scenario controls, parameters, timeline and
   browser demonstrations are the next coherent pass. No release is implied.
 
-## Unreleased — M5 ECU network
+### M5 ECU network
 
 - Add the versioned DemoCar 0.2 profile: five publishing/subscribing ECU, eight
   original DBC messages, narrow sensor/actuator ports and per-message deadlines.
@@ -83,7 +85,7 @@
 - Add normal urban drive acceptance and API/CLI/browser regression coverage.
   This completes the local M5 scope; no new release or remote CI result is implied.
 
-## Unreleased — M5 motion controls
+### M5 motion controls
 
 - Add brake, P/R/N/D, longitudinal speed, coasting, directional caps and moving
   RPM coupling. Preserve the original parked throttle and physical engine controls.
@@ -96,7 +98,7 @@
 - Keep the EngineStatus DBC and CAN-only KOMBI RPM chain. Additional ECU, CAN
   speed/temperature, expanded DBC and full-network acceptance remain within M5.
 
-## Unreleased — M5 physical engine controls (first pass)
+### M5 physical engine controls (first pass)
 
 - Add ignition OFF/ACC/ON/START and physical Start/Stop without suppressing Engine
   ECU publication; a stopped engine coasts to zero RPM with FRESH CAN reception.
@@ -109,7 +111,9 @@
 - M5 is not complete: additional ECU, brake/gear/speed, expanded DBC and normal
   urban drive are subsequent passes. No release or remote CI result is implied.
 
-## Unreleased — v0.1.0 / M4 vertical slice acceptance
+## [0.1.0] — 2026-10-30
+
+### v0.1.0 / M4 vertical slice acceptance
 
 - Add repeatable Chromium acceptance of the production UI with real API/core,
   disposable recordings, exact freshness deadlines in playback and a fresh rerun.
@@ -119,10 +123,9 @@
   host security settings; newer Ubuntu defaults reject the bundled browser.
 - Document the clean quickstart, reproducible offline demo and acceptance evidence;
   include a short recording and screenshot from the real browser run.
-- Set Python/UI package versions to 0.1.0. This prepares the local release;
-  no release tag, GitHub Release or remote CI success is implied.
+- Set Python and UI package versions to 0.1.0.
 
-## Unreleased — M3 first working UI
+### M3 first working UI
 
 - Cancel pending playback loads on return to live; ignore stale responses/errors
   so they cannot switch the UI back or interfere with a newer operation.
@@ -137,7 +140,7 @@
 - Add `autocan studio` to build and serve the dashboard locally in one command,
   frontend lockfile/checks and API/UI tests. M4 release acceptance remains separate.
 
-## Unreleased — M2 faults and reproducible traces
+### M2 faults and reproducible traces
 
 - Add publication-only Engine ECU Offline/Online and virtual KOMBI freshness
   deadlines that work while the bus is silent.
@@ -149,7 +152,7 @@
   overwrites, incomplete/corrupt runs, quota overruns and incompatible reruns.
 - Preserve M1 headless controls; API/UI, Parquet and ML remain later milestones.
 
-## Unreleased — M1 headless simulator
+### M1 headless simulator
 
 - Add integer virtual time with stable event phases and pause/step/reset controls.
 - Connect a synthetic throttle/RPM model through Engine ECU, DBC and python-can

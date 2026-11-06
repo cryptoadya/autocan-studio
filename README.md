@@ -3,7 +3,7 @@
 A local-first, synthetic CAN laboratory with a deterministic simulator and an
 independent anomaly-detection pipeline planned for later milestones.
 
-**M7 implemented and locally verified; released baseline: v0.1.0 (M0–M4).**
+**AutoCAN Studio v1.0.0 covers M0–M7.**
 Engine, ABS/DSC, Transmission, Body and KOMBI exchange eight synthetic messages
 through an in-process python-can adapter. KOMBI decodes received RPM, speed,
 temperature, gear and ignition with independent freshness timers. Physical
@@ -28,7 +28,7 @@ Install Python 3.12, [uv 0.13.6](https://docs.astral.sh/uv/getting-started/insta
 and Node.js 22.12+ with npm. From a fresh source checkout:
 
 ```sh
-git clone https://github.com/cryptoadya/autocan-studio.git
+git clone --branch v1.0.0 https://github.com/cryptoadya/autocan-studio.git
 cd autocan-studio
 uv run --locked autocan studio
 ```
@@ -302,6 +302,5 @@ The profile specifies a synthetic CAN ID, not a real vehicle mapping.
 - [Milestone status](docs/ROADMAP.md)
 - [Change history](CHANGELOG.md)
 
-M5 completes the five-ECU network and normal urban drive scope above the released
-v0.1.0 baseline. Local verification is recorded in the milestone status; remote
-CI requires a push. M6 adds the fault library; Parquet/datasets and ML follow later.
+V1 adds the five-ECU network, fault library, Parquet exchange and Dataset Factory
+to the v0.1.0 vertical slice. Anomaly detection starts in M8.
