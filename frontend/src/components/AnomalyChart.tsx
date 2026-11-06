@@ -37,6 +37,7 @@ export function AnomalyChart({view}: {view: Snapshot}) {
   const y = (score: number) => 118 - score * 100
   const inView = (from: number, to: number | null) => from <= end && (to ?? view.sim_time_ns) >= start
   const points = scores.filter(sample => sample.sim_time_ns >= start)
+  const faults = faultIntervals([...(view.active_fault_markers ?? []), ...(view.timeline ?? [])])
   const format = (value: number | null) => value == null ? '—' : value.toFixed(2)
 
   return <section className="chart-panel anomaly-panel" aria-label="Anomaly detection">
@@ -69,7 +70,7 @@ export function AnomalyChart({view}: {view: Snapshot}) {
           width={Math.max(2, x(episode.end_ns ?? view.sim_time_ns) - x(episode.start_ns))}>
           <title>Model alert · peak {episode.peak_score.toFixed(3)}</title>
         </rect>)}
-      {Array.from(faultIntervals(view.timeline ?? [])).filter(([, fault]) => inView(fault.start, fault.end)).map(([key, fault]) =>
+      {Array.from(faults).filter(([, fault]) => inView(fault.start, fault.end)).map(([key, fault]) =>
         <rect key={key} data-testid="ground-truth-fault" className="anomaly-fault"
           x={x(fault.start)} y="152" height="10" rx="2"
           width={Math.max(2, x(fault.end ?? view.sim_time_ns) - x(fault.start))}>

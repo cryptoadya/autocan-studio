@@ -2,7 +2,8 @@
 
 from pathlib import Path
 
-from autocan.api.runtime import saved_view
+from autocan.api.runtime import Session, saved_view
+from autocan.faults import FaultSpec
 from autocan.parquet import export_trace, import_trace
 from autocan.simulation import Simulation
 from autocan.traces import TraceRecorder, rerun
@@ -53,3 +54,44 @@ def test_recorded_alert_episodes_ignore_warmup_and_bridge_one_low_score(tmp_path
     import_trace(bundle, restored)
     assert saved_view(restored)["anomaly"] == final
     assert rerun(restored)["matches"] is True
+
+
+def test_active_fault_markers_survive_journal_truncation_in_live_and_playback(
+    tmp_path: Path,
+) -> None:
+    session = Session(tmp_path, seed=42, profile_id="democar-network")
+    try:
+        session.offline(True, "abs")
+        session.inject_fault(
+            FaultSpec.from_dict(
+                {
+                    "fault_id": "engine-library",
+                    "type": "ecu_offline",
+                    "target_ecu": "engine",
+                    "target_message_id": None,
+                    "parameters": {},
+                    "seed": 42,
+                }
+            )
+        )
+        session.start()
+        for throttle in range(110):
+            session.inputs(throttle=throttle % 100)
+            session.tick()
+        live = session.snapshot()
+        assert live["timeline_truncated"] > 0
+        assert not any(row["event_kind"] == "FaultActivated" for row in live["timeline"])
+        assert {row["target_ecu"] for row in live["active_fault_markers"]} == {"abs", "engine"}
+
+        session.offline(False, "abs")
+        session.clear_fault("engine-library")
+        session.tick()
+        session.stop()
+    finally:
+        session.close()
+
+    run = tmp_path / session.id
+    assert (
+        saved_view(run, live["sim_time_ns"])["active_fault_markers"] == live["active_fault_markers"]
+    )
+    assert saved_view(run)["active_fault_markers"] == []

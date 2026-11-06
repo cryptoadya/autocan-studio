@@ -55,6 +55,7 @@ class FaultTimeline:
     def __init__(self) -> None:
         self.events: deque[dict[str, Any]] = deque(maxlen=TIMELINE_LIMIT)
         self.active: dict[str, dict[str, Any]] = {}
+        self.active_markers: dict[tuple[str, int], dict[str, Any]] = {}
         self.total = 0
 
     def consume(self, event: dict[str, Any]) -> None:
@@ -79,6 +80,11 @@ class FaultTimeline:
             row["details"] = (
                 f"{event['fault_id']} · {event['type'].replace('_', ' ')} · {event['target_ecu']}"
             )
+            key = (event["fault_id"], event["start_at_ns"])
+            if kind == "FaultActivated":
+                self.active_markers[key] = row
+            else:
+                self.active_markers.pop(key, None)
             if "fault_json" in event:
                 if kind == "FaultActivated":
                     self.active[event["fault_id"]] = {
@@ -115,4 +121,5 @@ class FaultTimeline:
             "timeline": list(self.events),
             "timeline_truncated": self.total - len(self.events),
             "active_faults": list(self.active.values()),
+            "active_fault_markers": list(self.active_markers.values()),
         }

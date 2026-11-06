@@ -71,6 +71,7 @@ export interface Snapshot {
   duration_ns?: number
   scenario?: DemoScenario | null
   active_faults?: ActiveFault[]
+  active_fault_markers?: TimelineEvent[]
   timeline?: TimelineEvent[]
   timeline_truncated?: number
   anomaly?: AnomalyView | null
