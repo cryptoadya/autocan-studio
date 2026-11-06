@@ -1,0 +1,127 @@
+{
+  "revision": "c5bdd8d674931575a56ec378e058d52538bf2803",
+  "browser": "156.0.8078.80",
+  "seed": 42,
+  "fixture": {
+    "bytes": 25815105,
+    "endNs": 120000000000,
+    "digest": "0557d448079f12f57ad773e533af610de55fe8750de5ec477839b91ac834a76b",
+    "model": {
+      "feature_schema_version": 1,
+      "model_id": "random_forest",
+      "model_sha256": "768317bb24af93fc6eadacb3c285458ab6a82e4750299fce6b52a1d566bd61f6",
+      "threshold": 0.31373544410909504
+    }
+  },
+  "crowded": {
+    "list": {
+      "count": 63,
+      "uiMs": 82527.381,
+      "fetchMs": 82339.3,
+      "ttfbMs": 82338.2,
+      "bytes": 4348
+    },
+    "rssBeforeKiB": 183584,
+    "rssAfterListKiB": 166864,
+    "last": {
+      "id": "c0f70c449adc4b30b7567cef5678863a",
+      "endNs": 1000000000,
+      "wallMs": 1367.494,
+      "scoreSamples": 10,
+      "rssKiB": 168352
+    },
+    "rejection": {
+      "status": 409,
+      "detail": "run quota reached (64); archive local runs before creating more"
+    }
+  },
+  "cleanup": {
+    "moved": 63,
+    "archivedBytes": 1600769711,
+    "archiveMs": 6.268
+  },
+  "recovered": {
+    "list": {
+      "count": 1,
+      "uiMs": 1582.224,
+      "fetchMs": 1441.5,
+      "ttfbMs": 1440.8,
+      "bytes": 70
+    },
+    "rssBeforeCyclesKiB": 132768,
+    "cycles": [
+      {
+        "id": "722d4acd3fb149808717425d0faf96ee",
+        "endNs": 2050000000,
+        "wallMs": 2594.841,
+        "scoreSamples": 20,
+        "rssKiB": 139024
+      },
+      {
+        "id": "699b45c6a61b4689b753470ec2ca89d8",
+        "endNs": 2000000000,
+        "wallMs": 2587.874,
+        "scoreSamples": 20,
+        "rssKiB": 140416
+      },
+      {
+        "id": "9380a83d29fd4c92a88c63dab7679df8",
+        "endNs": 2000000000,
+        "wallMs": 2608.873,
+        "scoreSamples": 20,
+        "rssKiB": 141728
+      },
+      {
+        "id": "952a5580a578407dac04ae620693a86e",
+        "endNs": 2000000000,
+        "wallMs": 2651.022,
+        "scoreSamples": 20,
+        "rssKiB": 168016
+      },
+      {
+        "id": "1dbd75e1fabc43f58424d1e1f6d647d2",
+        "endNs": 2050000000,
+        "wallMs": 2623.099,
+        "scoreSamples": 20,
+        "rssKiB": 168032
+      },
+      {
+        "id": "cbf26f12359d4bdba4db798d6af4a9f3",
+        "endNs": 2000000000,
+        "wallMs": 2466.648,
+        "scoreSamples": 20,
+        "rssKiB": 169312
+      },
+      {
+        "id": "89eb5a41559c4b89a01a244393b0afe2",
+        "endNs": 2000000000,
+        "wallMs": 2457.374,
+        "scoreSamples": 20,
+        "rssKiB": 170576
+      },
+      {
+        "id": "6d27fc9c9ea54fc18ebba3feb7772a7c",
+        "endNs": 2000000000,
+        "wallMs": 2559.991,
+        "scoreSamples": 20,
+        "rssKiB": 171328
+      },
+      {
+        "id": "7e386ac598d04f6cbb6986decd7e45be",
+        "endNs": 2000000000,
+        "wallMs": 2514.23,
+        "scoreSamples": 20,
+        "rssKiB": 171328
+      },
+      {
+        "id": "9aa12273523f47829ed064566ab3f089",
+        "endNs": 2000000000,
+        "wallMs": 2560.753,
+        "scoreSamples": 20,
+        "rssKiB": 171552
+      }
+    ],
+    "finalCount": 11,
+    "rssAfterCyclesKiB": 171248
+  }
+}
