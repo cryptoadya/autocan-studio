@@ -494,3 +494,87 @@ def test_bootstrap_rejects_corrupted_inputs_before_publishing(
     args = event_arguments(frozen, root, tmp_path / "invalid")
     assert main(["bootstrap-metrics", *args[1:], "--replicates", "10"]) == 1
     assert not (tmp_path / "invalid").exists()
+
+
+def test_live_random_forest_matches_offline_and_records_provenance(
+    tmp_path: Path, ml_joint: Path, ml_prepared: Path, ml_source: Path
+) -> None:
+    from autocan.api.runtime import Session
+    from autocan.live_scoring import load_live_model
+    from autocan.ml_ood import _run_windows
+    from autocan.model_artifacts import load_frozen_experiment
+    from autocan.network_profile import ECU_IDS
+    from autocan.parquet import export_observer, export_trace, import_trace
+    from autocan.scenarios import Scenario
+    from autocan.traces import rerun, verify_trace
+
+    model = load_live_model(ml_joint, ml_prepared, ml_source)
+    scenario = Scenario(profile_id="democar-network", duration_ns=1_050_000_000)
+    session = Session(
+        tmp_path, seed=42, profile_id=scenario.profile_id, scenario=scenario, live_model=model
+    )
+    try:
+        session.inputs(throttle=60)
+        session.start()
+        for _ in range(6):
+            session.tick()
+        assert len(session.live_scores) == 3  # the saved 100 ms configuration
+        for ecu_id in ECU_IDS:
+            session.offline(True, ecu_id)
+        for _ in range(15):
+            session.tick()
+        assert session.stopped and session.feature_windows[-1].message_count == 0
+    finally:
+        session.close()
+
+    run = tmp_path / session.id
+    prepared = load_training_data(ml_prepared, source=ml_source)
+    frozen = load_frozen_experiment(ml_joint, prepared, detector="random_forest")
+    offline = tmp_path / "offline"
+    export_observer(run, offline / "observer", receiver_id="observer")
+    rows = _run_windows(offline, prepared.configuration, prepared.columns, "live", session.id, 0)
+    assert len(rows) == 10
+    assert [item.key for item in session.live_scores] == [row.key for row in rows]
+    assert [item.score for item in session.live_scores] == pytest.approx(
+        frozen.models["random_forest"].score(rows), abs=1e-12, rel=0
+    )
+    provenance = {
+        "model_id": "random_forest",
+        "model_sha256": sha256(
+            (ml_joint / "models/random_forest/model.pkl").read_bytes()
+        ).hexdigest(),
+        "threshold": frozen.thresholds["random_forest"],
+        "feature_schema_version": frozen.manifest["feature_schema_version"],
+    }
+    assert verify_trace(run)["live_model"] == provenance
+    export_trace(run, tmp_path / "parquet")
+    restored = tmp_path / "restored"
+    assert import_trace(tmp_path / "parquet", restored)["live_model"] == provenance
+    assert rerun(restored)["matches"] is True
+
+
+def test_frozen_loader_rejects_pickle_changed_after_inspection(
+    tmp_path: Path,
+    ml_joint: Path,
+    ml_prepared: Path,
+    ml_source: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from autocan import model_artifacts
+    from autocan.traces import TraceError
+
+    experiment = tmp_path / "experiment"
+    copytree(ml_joint, experiment)
+    data = load_training_data(ml_prepared, source=ml_source)
+    metadata = model_artifacts.inspect_frozen_experiment(experiment, data)
+    pickle_path = experiment / "models/random_forest/model.pkl"
+    payload = pickle_path.read_bytes()
+    pickle_path.write_bytes(bytes([payload[0] ^ 1]) + payload[1:])
+
+    def forbid_unpickle(_: bytes) -> None:
+        pytest.fail("changed model bytes reached the deserializer")
+
+    monkeypatch.setattr(model_artifacts, "inspect_frozen_experiment", lambda *_: metadata)
+    monkeypatch.setattr(pickle, "loads", forbid_unpickle)
+    with pytest.raises(TraceError, match="checksum/size mismatch.*random_forest/model.pkl"):
+        model_artifacts.load_frozen_experiment(experiment, data, detector="random_forest")

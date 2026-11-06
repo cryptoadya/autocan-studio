@@ -4,13 +4,17 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import uvicorn
 
 from autocan.api import create_app
 
+if TYPE_CHECKING:
+    from autocan.live_scoring import LiveModel
 
-def launch(*, port: int = 8000) -> int:
+
+def launch(*, port: int = 8000, live_model: "LiveModel | None" = None) -> int:
     if not 1024 <= port <= 65535:
         raise ValueError("port must be in [1024, 65535]")
     frontend = Path.cwd() / "frontend"
@@ -27,7 +31,7 @@ def launch(*, port: int = 8000) -> int:
             return result.returncode
     print(f"AutoCAN Studio: http://127.0.0.1:{port} (Ctrl+C to stop)", flush=True)
     uvicorn.run(
-        create_app(static_root=frontend / "dist"),
+        create_app(static_root=frontend / "dist", live_model=live_model),
         host="127.0.0.1",
         port=port,
         limit_concurrency=32,

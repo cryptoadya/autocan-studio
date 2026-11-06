@@ -10,14 +10,16 @@ from autocan.network_profile import RECEIVERS
 
 
 class LiveFeatureBus(VirtualCanAdapter):
-    def __init__(self, end_ns: int, on_window: Callable[[FeatureWindow], None]) -> None:
+    def __init__(
+        self, end_ns: int, config: FeatureConfig, on_window: Callable[[FeatureWindow], None]
+    ) -> None:
         self._clock = SimulationClock()
         self._pipeline = FeaturePipeline(
             self._clock,
             profile_id="democar-network",
             receiver_id="observer",
             end_ns=end_ns,
-            config=FeatureConfig(),
+            config=config,
             on_window=on_window,
         )
         self._receipts: list[CanObservation] = []

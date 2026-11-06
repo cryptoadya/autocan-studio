@@ -2,7 +2,7 @@
 
 from contextlib import suppress
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from cantools.database.can import Database
 
@@ -15,12 +15,16 @@ from autocan.api.timeline import FaultTimeline
 from autocan.dbc import profile_from_version
 from autocan.events import RunEvent
 from autocan.faults import FaultSpec, fault_id
-from autocan.features import FeatureWindow
+from autocan.features import FeatureConfig, FeatureWindow
 from autocan.scenarios import Scenario
 from autocan.simulation import Simulation
 from autocan.traces import TraceRecorder, playback, verify_trace
 from autocan.validation import integer
 from autocan.vehicle import validate_brake, validate_gear, validate_ignition, validate_throttle
+
+if TYPE_CHECKING:
+    from autocan.live_scoring import LiveModel
+    from autocan.window_evaluation import WindowScore
 
 TICK_NS = 50_000_000
 MAX_DURATION_NS = 120_000_000_000
@@ -37,6 +41,7 @@ class Session:
         profile_id: str = "democar",
         scenario: Scenario | None = None,
         scenario_info: dict[str, object] | None = None,
+        live_model: "LiveModel | None" = None,
     ) -> None:
         if scenario is not None and (
             scenario.duration_ns > MAX_DURATION_NS or scenario.profile_id != profile_id
@@ -53,12 +58,21 @@ class Session:
         self.stopped = False
         self.error: str | None = None
         self.commands = len(scenario.commands) if scenario is not None else 0
-        # The session duration caps history at 240 default (500 ms) windows.
+        model = live_model if profile_id == "democar-network" else None
         self.feature_windows: list[FeatureWindow] = []
+        self.live_scores: list[WindowScore] = []
         self._feature_bus: LiveFeatureBus | None = None
 
+        def on_window(window: FeatureWindow) -> None:
+            if model is not None:
+                self.live_scores.append(
+                    model.score(window, run_id=self.id, row_index=len(self.feature_windows))
+                )
+            self.feature_windows.append(window)
+
         def feature_bus() -> LiveFeatureBus:
-            bus = LiveFeatureBus(MAX_DURATION_NS, self.feature_windows.append)
+            config = model.configuration if model is not None else FeatureConfig()
+            bus = LiveFeatureBus(MAX_DURATION_NS, config, on_window)
             self._feature_bus = bus
             return bus
 
@@ -73,7 +87,9 @@ class Session:
         self.id = self.sim.run_id
         try:
             self.recorder = TraceRecorder(root / self.id)
-            self.recorder.begin(self.sim, scenario=scenario_info)
+            self.recorder.begin(
+                self.sim, scenario=scenario_info, live_model=model.provenance if model else None
+            )
             if scenario is not None:
                 for command in scenario.commands:
                     command.schedule(self.sim)

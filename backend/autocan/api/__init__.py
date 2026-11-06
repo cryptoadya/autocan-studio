@@ -5,7 +5,7 @@ import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
-from typing import Annotated, Any, Literal, Self
+from typing import TYPE_CHECKING, Annotated, Any, Literal, Self
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
@@ -20,6 +20,9 @@ from autocan.catalog import DEMOS, fault_catalog, load_demo
 from autocan.dbc import PROFILES
 from autocan.faults import FaultSpec
 from autocan.traces import rerun, verify_trace
+
+if TYPE_CHECKING:
+    from autocan.live_scoring import LiveModel
 
 
 class LocalBoundary:
@@ -117,7 +120,12 @@ class FaultInjection(BaseModel):
     fault: FaultDefinition
 
 
-def create_app(*, data_root: Path = Path("data/runs"), static_root: Path | None = None) -> FastAPI:
+def create_app(
+    *,
+    data_root: Path = Path("data/runs"),
+    static_root: Path | None = None,
+    live_model: "LiveModel | None" = None,
+) -> FastAPI:
     active: Session | None = None
     connections = 0
 
@@ -205,6 +213,7 @@ def create_app(*, data_root: Path = Path("data/runs"), static_root: Path | None 
             profile_id=profile_id,
             scenario=scenario,
             scenario_info=scenario_info,
+            live_model=live_model,
         )
         return active.snapshot()
 
@@ -265,6 +274,7 @@ def create_app(*, data_root: Path = Path("data/runs"), static_root: Path | None 
                     profile_id=profile_id,
                     scenario=session.scenario,
                     scenario_info=session.scenario_info,
+                    live_model=live_model,
                 )
                 return active.snapshot()
             if action not in {"start", "pause", "stop"}:
