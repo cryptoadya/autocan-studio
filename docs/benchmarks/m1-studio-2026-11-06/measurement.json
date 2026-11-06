@@ -1,0 +1,498 @@
+{
+  "revision": "5c8d7b74f64240997ee8ec87ed381c5fe84b7fce",
+  "browser": "156.0.8078.80",
+  "seed": 42,
+  "profile": "democar-network",
+  "live": {
+    "wallSeconds": 91.739,
+    "stopTargetNs": 77000000000,
+    "messages": 1543,
+    "receiveGapMs": {
+      "min": 44.039,
+      "p50": 56.725,
+      "p95": 65.971,
+      "max": 831.041
+    },
+    "payloadBytes": {
+      "min": 1578,
+      "p50": 38666,
+      "p95": 41140,
+      "max": 41141
+    },
+    "skippedFrames": 0,
+    "retained": {
+      "frames": 200,
+      "signals": 400,
+      "scores": 240,
+      "alerts": 1
+    },
+    "lastScore": {
+      "sim_time_ns": 77000000000,
+      "score": 0.4462147744432403,
+      "eligible": true,
+      "timed_out_can_ids": [],
+      "rpm_derivative_max": 0,
+      "wheel_residual_max": 0
+    }
+  },
+  "trace": {
+    "status": "complete",
+    "end_time_ns": 77050000000,
+    "semantic_sha256": "29b1c5e657d7e0a943c1852c9c4552b89b86bbbbd60145ebff828d1e1777926f",
+    "artifacts": {
+      "commands.jsonl": {
+        "bytes": 0,
+        "records": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "events.jsonl": {
+        "bytes": 16410677,
+        "records": 62453,
+        "sha256": "327f455d564eb72364850a5aa1b2f872acf7ef10fd53d53a0c6ef7152c98a54e"
+      },
+      "faults.jsonl": {
+        "bytes": 0,
+        "records": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "profile.dbc": {
+        "bytes": 3124,
+        "records": 0,
+        "sha256": "2429d9408ff793be31bd9471ac751a09f85f6e0ac81deaddf7d94d563b0339e0"
+      },
+      "scores.jsonl": {
+        "bytes": 110776,
+        "records": 770,
+        "sha256": "015ea2f0f8a8d1cf9b76b218365e375789b9135783295702ade45e7ea39d5f91"
+      }
+    },
+    "live_model": {
+      "feature_schema_version": 1,
+      "model_id": "random_forest",
+      "model_sha256": "768317bb24af93fc6eadacb3c285458ab6a82e4750299fce6b52a1d566bd61f6",
+      "threshold": 0.31373544410909504
+    }
+  },
+  "files": {
+    "commands.jsonl": 0,
+    "events.jsonl": 16410677,
+    "faults.jsonl": 0,
+    "manifest.json": 8042,
+    "profile.dbc": 3124,
+    "scores.jsonl": 110776
+  },
+  "rss": [
+    {
+      "phase": "startup",
+      "seconds": null,
+      "kib": 121072
+    },
+    {
+      "phase": "live",
+      "seconds": 5.005,
+      "kib": 124688
+    },
+    {
+      "phase": "live",
+      "seconds": 10.006,
+      "kib": 124880
+    },
+    {
+      "phase": "live",
+      "seconds": 15.01,
+      "kib": 124640
+    },
+    {
+      "phase": "live",
+      "seconds": 20.008,
+      "kib": 124832
+    },
+    {
+      "phase": "live",
+      "seconds": 25.008,
+      "kib": 125024
+    },
+    {
+      "phase": "live",
+      "seconds": 30.009,
+      "kib": 125104
+    },
+    {
+      "phase": "live",
+      "seconds": 35.011,
+      "kib": 125232
+    },
+    {
+      "phase": "live",
+      "seconds": 40.011,
+      "kib": 125312
+    },
+    {
+      "phase": "live",
+      "seconds": 45.011,
+      "kib": 125424
+    },
+    {
+      "phase": "live",
+      "seconds": 50.014,
+      "kib": 125536
+    },
+    {
+      "phase": "live",
+      "seconds": 55.014,
+      "kib": 125568
+    },
+    {
+      "phase": "live",
+      "seconds": 60.015,
+      "kib": 125696
+    },
+    {
+      "phase": "live",
+      "seconds": 65.017,
+      "kib": 125856
+    },
+    {
+      "phase": "live",
+      "seconds": 70.019,
+      "kib": 125920
+    },
+    {
+      "phase": "live",
+      "seconds": 75.019,
+      "kib": 126032
+    },
+    {
+      "phase": "live",
+      "seconds": 80.022,
+      "kib": 126128
+    },
+    {
+      "phase": "live",
+      "seconds": 85.022,
+      "kib": 164608
+    },
+    {
+      "phase": "live",
+      "seconds": 90.025,
+      "kib": 164688
+    },
+    {
+      "phase": "live",
+      "seconds": 92.186,
+      "kib": 165072
+    },
+    {
+      "phase": "playback",
+      "seconds": 94.959,
+      "kib": 165872
+    },
+    {
+      "phase": "playback",
+      "seconds": 95.023,
+      "kib": 165888
+    },
+    {
+      "phase": "playback",
+      "seconds": 97.199,
+      "kib": 165888
+    },
+    {
+      "phase": "playback",
+      "seconds": 99.608,
+      "kib": 165936
+    },
+    {
+      "phase": "playback",
+      "seconds": 100.024,
+      "kib": 165936
+    },
+    {
+      "phase": "playback",
+      "seconds": 101.959,
+      "kib": 165936
+    },
+    {
+      "phase": "playback",
+      "seconds": 104.2,
+      "kib": 166016
+    },
+    {
+      "phase": "playback",
+      "seconds": 105.025,
+      "kib": 166016
+    },
+    {
+      "phase": "playback",
+      "seconds": 106.543,
+      "kib": 166016
+    },
+    {
+      "phase": "playback",
+      "seconds": 108.924,
+      "kib": 166016
+    },
+    {
+      "phase": "playback",
+      "seconds": 110.026,
+      "kib": 166016
+    },
+    {
+      "phase": "playback",
+      "seconds": 111.173,
+      "kib": 166016
+    },
+    {
+      "phase": "playback",
+      "seconds": 113.503,
+      "kib": 166016
+    },
+    {
+      "phase": "playback",
+      "seconds": 115.027,
+      "kib": 166016
+    },
+    {
+      "phase": "playback",
+      "seconds": 115.916,
+      "kib": 166016
+    },
+    {
+      "phase": "playback",
+      "seconds": 118.159,
+      "kib": 149328
+    },
+    {
+      "phase": "playback",
+      "seconds": 120.028,
+      "kib": 149328
+    },
+    {
+      "phase": "playback",
+      "seconds": 120.493,
+      "kib": 149328
+    },
+    {
+      "phase": "playback",
+      "seconds": 122.885,
+      "kib": 149328
+    },
+    {
+      "phase": "playback",
+      "seconds": 125.029,
+      "kib": 147952
+    },
+    {
+      "phase": "playback",
+      "seconds": 125.139,
+      "kib": 147952
+    },
+    {
+      "phase": "playback",
+      "seconds": 127.646,
+      "kib": 147760
+    }
+  ],
+  "playback": [
+    {
+      "trial": 1,
+      "target": 77.05,
+      "uiMs": 2734.802,
+      "fetchMs": 2677,
+      "ttfbMs": 2676.4,
+      "bodyBytes": 118583,
+      "frames": 200,
+      "signals": 400,
+      "scores": 240
+    },
+    {
+      "trial": 1,
+      "target": 60,
+      "uiMs": 2210.045,
+      "fetchMs": 2184.4,
+      "ttfbMs": 2183.8,
+      "bodyBytes": 118559,
+      "frames": 200,
+      "signals": 400,
+      "scores": 240
+    },
+    {
+      "trial": 1,
+      "target": 76,
+      "uiMs": 2386.918,
+      "fetchMs": 2367.2,
+      "ttfbMs": 2366.8,
+      "bodyBytes": 118571,
+      "frames": 200,
+      "signals": 400,
+      "scores": 240
+    },
+    {
+      "trial": 2,
+      "target": 77.05,
+      "uiMs": 2338.045,
+      "fetchMs": 2287.8,
+      "ttfbMs": 2287.2,
+      "bodyBytes": 118583,
+      "frames": 200,
+      "signals": 400,
+      "scores": 240
+    },
+    {
+      "trial": 2,
+      "target": 60,
+      "uiMs": 2212.119,
+      "fetchMs": 2190.6,
+      "ttfbMs": 2190,
+      "bodyBytes": 118559,
+      "frames": 200,
+      "signals": 400,
+      "scores": 240
+    },
+    {
+      "trial": 2,
+      "target": 76,
+      "uiMs": 2321.674,
+      "fetchMs": 2303.2,
+      "ttfbMs": 2302.6,
+      "bodyBytes": 118571,
+      "frames": 200,
+      "signals": 400,
+      "scores": 240
+    },
+    {
+      "trial": 3,
+      "target": 77.05,
+      "uiMs": 2353.892,
+      "fetchMs": 2304.2,
+      "ttfbMs": 2303.6,
+      "bodyBytes": 118583,
+      "frames": 200,
+      "signals": 400,
+      "scores": 240
+    },
+    {
+      "trial": 3,
+      "target": 60,
+      "uiMs": 2219.263,
+      "fetchMs": 2198.6,
+      "ttfbMs": 2198.1,
+      "bodyBytes": 118559,
+      "frames": 200,
+      "signals": 400,
+      "scores": 240
+    },
+    {
+      "trial": 3,
+      "target": 76,
+      "uiMs": 2312.815,
+      "fetchMs": 2293.1,
+      "ttfbMs": 2292.4,
+      "bodyBytes": 118571,
+      "frames": 200,
+      "signals": 400,
+      "scores": 240
+    },
+    {
+      "trial": 4,
+      "target": 77.05,
+      "uiMs": 2394.829,
+      "fetchMs": 2346.7,
+      "ttfbMs": 2346,
+      "bodyBytes": 118583,
+      "frames": 200,
+      "signals": 400,
+      "scores": 240
+    },
+    {
+      "trial": 4,
+      "target": 60,
+      "uiMs": 2203.59,
+      "fetchMs": 2181.2,
+      "ttfbMs": 2180.6,
+      "bodyBytes": 118559,
+      "frames": 200,
+      "signals": 400,
+      "scores": 240
+    },
+    {
+      "trial": 4,
+      "target": 76,
+      "uiMs": 2322.622,
+      "fetchMs": 2304.7,
+      "ttfbMs": 2304.1,
+      "bodyBytes": 118571,
+      "frames": 200,
+      "signals": 400,
+      "scores": 240
+    },
+    {
+      "trial": 5,
+      "target": 77.05,
+      "uiMs": 2363.779,
+      "fetchMs": 2315.6,
+      "ttfbMs": 2315,
+      "bodyBytes": 118583,
+      "frames": 200,
+      "signals": 400,
+      "scores": 240
+    },
+    {
+      "trial": 5,
+      "target": 60,
+      "uiMs": 2217.406,
+      "fetchMs": 2192.2,
+      "ttfbMs": 2191.6,
+      "bodyBytes": 118559,
+      "frames": 200,
+      "signals": 400,
+      "scores": 240
+    },
+    {
+      "trial": 5,
+      "target": 76,
+      "uiMs": 2492.61,
+      "fetchMs": 2473.7,
+      "ttfbMs": 2473.2,
+      "bodyBytes": 118571,
+      "frames": 200,
+      "signals": 400,
+      "scores": 240
+    }
+  ],
+  "browserErrors": [],
+  "unattended_quota": {
+    "configured_duration_limit_ns": 120000000000,
+    "byte_limit": 16777216,
+    "virtual_stop_ns": 78220000000,
+    "manifest_status": "failed",
+    "error": "trace quota exceeded",
+    "budgeted_bytes": 16777196,
+    "artifacts": {
+      "commands.jsonl": {
+        "bytes": 0,
+        "records": 0
+      },
+      "events.jsonl": {
+        "bytes": 16661568,
+        "records": 63403
+      },
+      "faults.jsonl": {
+        "bytes": 0,
+        "records": 0
+      },
+      "profile.dbc": {
+        "bytes": 3124
+      },
+      "scores.jsonl": {
+        "bytes": 112504,
+        "records": 782
+      }
+    },
+    "saved_runs": [],
+    "playback_http_status": 409,
+    "playback_response": {
+      "detail": "recording is not complete"
+    }
+  }
+}
