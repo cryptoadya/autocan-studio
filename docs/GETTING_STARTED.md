@@ -31,7 +31,9 @@ startup requires the frontend sources in the checkout. Use the
   are stored under ignored `data/runs/`. The dashboard limits each run to
   120 virtual seconds, 256 input commands, and 32 MiB of trace artifacts.
   Studio saves automatically at the duration limit. The run directory accepts
-  up to 64 entries. Move old runs out of that directory to free capacity.
+  up to 64 entries. Stop Studio and move completed runs outside the run
+  directory to free slots. See the [recordings stress check](benchmarks/m1-recordings-2026-11-06/README.md#archive-local-recordings)
+  for the archive commands and measured list behavior.
 
 Use [Simulation and faults](SIMULATION.md) for built-in scenarios, timelines,
 and the fault API.
