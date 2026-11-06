@@ -24,6 +24,7 @@ from autocan.traces import (
     DEFAULT_MAX_BYTES,
     MAX_LINE_BYTES,
     MAX_MANIFEST_BYTES,
+    SCORES,
     STREAMS,
     TraceError,
     _ordered_events,
@@ -208,6 +209,22 @@ def _json_row(record: dict[str, object]) -> dict[str, object]:
     return {"event_seq": record["event_seq"], "event_json": canonical_bytes(record).decode()}
 
 
+def _copy_scores(source: Path, target: Path, trace_meta: dict[str, object]) -> int:
+    artifacts = object_value(trace_meta["artifacts"], "trace artifacts")
+    if SCORES not in artifacts:
+        return 0
+    info = object_value(artifacts[SCORES], "score artifact")
+    size = integer(info.get("bytes"), "score artifact size")
+    if size > DEFAULT_MAX_BYTES:
+        raise TraceError("score artifact exceeds trace quota")
+    with _safe_file(source, SCORES).open("rb") as stream:
+        raw = stream.read(size + 1)
+    if len(raw) != size or sha256(raw).hexdigest() != info.get("sha256"):
+        raise TraceError("score artifact checksum or size mismatch")
+    (target / SCORES).write_bytes(raw)
+    return size
+
+
 def export_trace(
     source: Path, target: Path, *, max_bytes: int = DEFAULT_MAX_BYTES
 ) -> dict[str, object]:
@@ -216,6 +233,7 @@ def export_trace(
     trace_meta = verify_trace(source)
     with _new_output(target) as staging:
         (staging / "profile.dbc").write_bytes(_safe_file(source, "profile.dbc").read_bytes())
+        _copy_scores(source, staging, trace_meta)
         writers: dict[str, _TableWriter] = {}
         digest = sha256()
         with ExitStack() as stack:
@@ -265,9 +283,11 @@ def _read_export(source: Path, max_bytes: int, *, observer: bool = False) -> dic
         or (observer and integer(meta["observation_schema_version"], "observation schema") != 1)
     ):
         raise TraceError("unsupported or incomplete Parquet bundle")
-    object_value(meta["trace_manifest"], "trace manifest")
+    trace_meta = object_value(meta["trace_manifest"], "trace manifest")
     artifacts = object_value(meta["artifacts"], "artifacts")
     expected = set(OBSERVER_TABLES) if observer else TABLES.keys() | {"profile.dbc"}
+    if not observer and SCORES in object_value(trace_meta["artifacts"], "trace artifacts"):
+        expected.add(SCORES)
     if artifacts.keys() != expected:
         raise TraceError("unsupported artifact paths")
     total = len(raw)
@@ -406,7 +426,7 @@ def import_trace(
             if len(raw_meta) > MAX_MANIFEST_BYTES:
                 raise TraceError("trace manifest exceeds size limit")
             (staging / "manifest.json").write_bytes(raw_meta)
-            size = len(profile)
+            size = len(profile) + _copy_scores(source, staging, trace_meta)
             with ExitStack() as stack:
                 streams = {
                     name: stack.enter_context((staging / name).open("xb")) for name in STREAMS

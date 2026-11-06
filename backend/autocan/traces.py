@@ -11,11 +11,12 @@ from importlib.resources import files
 from itertools import groupby
 from pathlib import Path
 from types import TracebackType
-from typing import BinaryIO, Self, TypedDict
+from typing import BinaryIO, Self, TypedDict, cast
 
 from autocan.dbc import profile_bytes, profile_from_version, profile_version
 from autocan.events import CanFrame, RunEvent, Scalar
 from autocan.faults import FaultSpec
+from autocan.features import MAX_WINDOWS
 from autocan.network_profile import (
     ECU_IDS,
     GEARS,
@@ -34,6 +35,7 @@ MAX_MANIFEST_BYTES = 64 * 1024
 MAX_LINE_BYTES = 64 * 1024
 STREAMS = ("events.jsonl", "commands.jsonl", "faults.jsonl")
 ARTIFACTS = (*STREAMS, "profile.dbc")
+SCORES = "scores.jsonl"
 FAULT_KINDS = {"FaultActivated", "FaultCleared", "FrameDropped"}
 
 
@@ -46,6 +48,15 @@ class LiveModelProvenance(TypedDict):
     model_sha256: str
     threshold: float
     feature_schema_version: int
+
+
+class ScoreSample(TypedDict):
+    sim_time_ns: int
+    score: float
+    eligible: bool
+    timed_out_can_ids: list[int]
+    rpm_derivative_max: float | None
+    wheel_residual_max: float | None
 
 
 def _stream_name(kind: object) -> str:
@@ -137,6 +148,7 @@ class TraceRecorder:
         self._counts = dict.fromkeys(ARTIFACTS, 0)
         self._semantic = sha256()
         self._last_seq = self._last_time = 0
+        self._last_score_time = 0
         self._started = self._finished = False
         self._meta: dict[str, object] = {"format_version": 1, "status": "recording"}
         path.mkdir(parents=True, exist_ok=False)
@@ -166,6 +178,10 @@ class TraceRecorder:
         initial = sim.state()
         profile = _profile_bytes(sim.profile_id)
         try:
+            if live_model is not None:
+                self._files[SCORES] = (self.path / SCORES).open("xb")
+                self._hashes[SCORES] = sha256()
+                self._sizes[SCORES] = self._counts[SCORES] = 0
             (self.path / "profile.dbc").write_bytes(profile)
             self._hashes["profile.dbc"].update(profile)
             self._sizes["profile.dbc"] = len(profile)
@@ -211,14 +227,28 @@ class TraceRecorder:
         self._semantic.update(_semantic(record))
         self._last_seq, self._last_time = event.event_seq, event.sim_time_ns
 
+    def write_score(self, sample: ScoreSample) -> None:
+        if not self._started or self._finished or SCORES not in self._files:
+            raise TraceError("score recording is not active")
+        if sample["sim_time_ns"] <= self._last_score_time or self._counts[SCORES] >= MAX_WINDOWS:
+            raise TraceError("invalid score ordering or score quota exceeded")
+        raw = canonical_bytes(sample) + b"\n"
+        if len(raw) > MAX_LINE_BYTES or sum(self._sizes.values()) + len(raw) > self._limit:
+            raise TraceError("trace quota exceeded")
+        self._files[SCORES].write(raw)
+        self._hashes[SCORES].update(raw)
+        self._sizes[SCORES] += len(raw)
+        self._counts[SCORES] += 1
+        self._last_score_time = sample["sim_time_ns"]
+
     def finish(self, state: dict[str, Scalar]) -> dict[str, object]:
         if not self._started or self._finished:
             raise TraceError("recording is not active")
         if not self._last_seq or state.get("events_emitted") != self._last_seq:
             raise TraceError("recording has no initial events or simulation was reset")
         end = integer(state["sim_time_ns"], "end time")
-        if end < self._last_time:
-            raise TraceError("end time precedes an event")
+        if end < max(self._last_time, self._last_score_time):
+            raise TraceError("end time precedes an event or score")
         self._close_files()
         self._meta.update(
             status="complete",
@@ -231,7 +261,7 @@ class TraceRecorder:
                     "bytes": self._sizes[name],
                     "records": self._counts[name],
                 }
-                for name in ARTIFACTS
+                for name in self._sizes
             },
         )
         self._save_manifest()
@@ -391,10 +421,13 @@ def _read_meta(root: Path) -> dict[str, object]:
     ):
         raise TraceError("configuration checksum mismatch")
     artifacts = object_value(meta["artifacts"], "artifacts")
-    if set(artifacts) != set(ARTIFACTS):
+    expected = set(ARTIFACTS)
+    if "live_model" in meta and SCORES in artifacts:
+        expected.add(SCORES)
+    if artifacts.keys() != expected:
         raise TraceError("unsupported artifact paths")
     total = 0
-    for name in ARTIFACTS:
+    for name in artifacts:
         stat = object_value(artifacts[name], "artifact metadata")
         fields(stat, {"bytes", "sha256", "records"})
         size = integer(stat["bytes"], "artifact size")
@@ -416,18 +449,54 @@ def _read_meta(root: Path) -> dict[str, object]:
     return meta
 
 
-def _artifact_records(root: Path, name: str) -> Iterator[dict[str, object]]:
-    previous = 0
+def _jsonl_records(root: Path, name: str) -> Iterator[dict[str, object]]:
     with _safe_file(root, name).open("rb") as stream:
         while raw := stream.readline(MAX_LINE_BYTES + 1):
             if len(raw) > MAX_LINE_BYTES or not raw.endswith(b"\n"):
                 raise TraceError("invalid or oversized JSONL line")
-            record = json_object(raw.decode("utf-8"))
-            seq = integer(record.get("event_seq"), "event_seq", minimum=1)
-            if seq <= previous or _stream_name(record.get("event_kind")) != name:
-                raise TraceError("event ordering or stream classification mismatch")
-            previous = seq
-            yield record
+            yield json_object(raw.decode("utf-8"))
+
+
+def _artifact_records(root: Path, name: str) -> Iterator[dict[str, object]]:
+    previous = 0
+    for record in _jsonl_records(root, name):
+        seq = integer(record.get("event_seq"), "event_seq", minimum=1)
+        if seq <= previous or _stream_name(record.get("event_kind")) != name:
+            raise TraceError("event ordering or stream classification mismatch")
+        previous = seq
+        yield record
+
+
+def recorded_scores(root: Path, meta: dict[str, object]) -> Iterator[ScoreSample]:
+    artifacts = object_value(meta["artifacts"], "artifacts")
+    if SCORES not in artifacts:
+        return
+    end = integer(meta["end_time_ns"], "end time")
+    previous = count = 0
+    for record in _jsonl_records(root, SCORES):
+        fields(record, set(ScoreSample.__annotations__))
+        time = integer(record["sim_time_ns"], "score time", minimum=previous + 1)
+        if time > end:
+            raise TraceError("score follows the end of the recording")
+        number(record["score"], "score", minimum=0, maximum=1)
+        ids = record["timed_out_can_ids"]
+        if (
+            type(record["eligible"]) is not bool
+            or not isinstance(ids, list)
+            or len(ids) > len(PLAN_BY_ID)
+            or any(type(can_id) is not int or can_id not in PLAN_BY_ID for can_id in ids)
+        ):
+            raise TraceError("invalid score eligibility or observed CAN IDs")
+        for name in ("rpm_derivative_max", "wheel_residual_max"):
+            if record[name] is not None:
+                number(record[name], name, minimum=0, maximum=float("inf"))
+        previous = time
+        count += 1
+        if count > MAX_WINDOWS:
+            raise TraceError("score quota exceeded")
+        yield cast(ScoreSample, record)
+    if count != object_value(artifacts[SCORES], "score artifact")["records"]:
+        raise TraceError("score record count mismatch")
 
 
 def _validate_event(record: dict[str, object], meta: dict[str, object]) -> None:
@@ -657,6 +726,8 @@ def verify_trace(root: Path) -> dict[str, object]:
             raise TraceError("record count mismatch")
         if digest.hexdigest() != meta["semantic_sha256"]:
             raise TraceError("semantic checksum mismatch")
+        for _ in recorded_scores(root, meta):
+            pass  # Validate the entire derived stream independently of the core event digest.
         return meta
     except (ValueError, OSError) as exc:
         raise TraceError(str(exc)) from exc

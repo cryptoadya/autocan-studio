@@ -11,15 +11,15 @@ from autocan.api.observation import FRAME_LIMIT as FRAME_LIMIT
 from autocan.api.observation import SIGNAL_LIMIT as SIGNAL_LIMIT
 from autocan.api.observation import ObservationView as ObservationView
 from autocan.api.observation import make_view
-from autocan.api.timeline import FaultTimeline
+from autocan.api.timeline import AnomalyTimeline, FaultTimeline
 from autocan.dbc import profile_from_version
 from autocan.events import RunEvent
 from autocan.faults import FaultSpec, fault_id
 from autocan.features import FeatureConfig, FeatureWindow
 from autocan.scenarios import Scenario
 from autocan.simulation import Simulation
-from autocan.traces import TraceRecorder, playback, verify_trace
-from autocan.validation import integer
+from autocan.traces import ScoreSample, TraceRecorder, playback, recorded_scores, verify_trace
+from autocan.validation import integer, object_value
 from autocan.vehicle import validate_brake, validate_gear, validate_ignition, validate_throttle
 
 if TYPE_CHECKING:
@@ -59,15 +59,28 @@ class Session:
         self.error: str | None = None
         self.commands = len(scenario.commands) if scenario is not None else 0
         model = live_model if profile_id == "democar-network" else None
+        self.anomaly = AnomalyTimeline(dict(model.provenance)) if model else None
         self.feature_windows: list[FeatureWindow] = []
         self.live_scores: list[WindowScore] = []
         self._feature_bus: LiveFeatureBus | None = None
 
         def on_window(window: FeatureWindow) -> None:
             if model is not None:
-                self.live_scores.append(
-                    model.score(window, run_id=self.id, row_index=len(self.feature_windows))
-                )
+                score = model.score(window, run_id=self.id, row_index=len(self.feature_windows))
+                assert score.score is not None and self.anomaly is not None
+                sample: ScoreSample = {
+                    "sim_time_ns": score.key.end_ns,
+                    "score": score.score,
+                    "eligible": score.key.eligible,
+                    "timed_out_can_ids": [
+                        message.can_id for message in window.messages if message.timed_out
+                    ],
+                    "rpm_derivative_max": window.rpm_derivative_max,
+                    "wheel_residual_max": window.wheel_residual_max,
+                }
+                self.recorder.write_score(sample)
+                self.anomaly.consume(sample)
+                self.live_scores.append(score)
             self.feature_windows.append(window)
 
         def feature_bus() -> LiveFeatureBus:
@@ -233,6 +246,7 @@ class Session:
             "error": self.error,
             "recording": "failed" if self.error else "saved" if self.stopped else "recording",
             "scenario": self.scenario_info,
+            "anomaly": self.anomaly.snapshot() if self.anomaly else None,
             **self.timeline.snapshot(),
         }
 
@@ -254,6 +268,13 @@ def saved_view(path: Path, until_ns: int | None = None) -> dict[str, Any]:
     database.add_dbc_string((path / "profile.dbc").read_text())
     view = make_view(profile_from_version(meta["profile_version"]), database)
     timeline = FaultTimeline()
+    anomaly = None
+    if "live_model" in meta:
+        anomaly = AnomalyTimeline(object_value(meta["live_model"], "live model provenance"))
+        for sample in recorded_scores(path, meta):
+            if sample["sim_time_ns"] > target:
+                break
+            anomaly.consume(sample)
     # Only retain the final display window, even for a long CLI recording.
     first_sample = max(0, target - (SIGNAL_LIMIT - 1) * TICK_NS)
     next_sample = ((first_sample + TICK_NS - 1) // TICK_NS) * TICK_NS
@@ -283,5 +304,6 @@ def saved_view(path: Path, until_ns: int | None = None) -> dict[str, Any]:
         "error": None,
         "recording": "saved",
         "scenario": meta.get("scenario"),
+        "anomaly": anomaly.snapshot() if anomaly else None,
         **timeline.snapshot(),
     }
