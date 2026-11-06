@@ -1,5 +1,6 @@
 """Causal windows and rules consume only the selected receiver's wire stream."""
 
+from collections.abc import Iterator
 from dataclasses import asdict
 from functools import partial
 from pathlib import Path
@@ -169,57 +170,63 @@ def test_baseline_cli_reads_m7_observer_dataset_and_is_deterministic(tmp_path: P
     assert invalid.returncode != 0 and "error:" in invalid.stderr
 
 
-def test_live_bus_observations_match_offline_parquet_windows(tmp_path: Path) -> None:
-    from autocan.bus import VirtualCanAdapter
-    from autocan.events import Delivery
+@pytest.mark.parametrize("delay_ms", [0, 5])
+def test_live_session_windows_match_offline_during_bus_silence(
+    tmp_path: Path, delay_ms: int
+) -> None:
+    from autocan.api.runtime import Session
     from autocan.features import FeatureConfig, FeaturePipeline, FeatureWindow, replay_observations
-    from autocan.network_profile import RECEIVERS
+    from autocan.network_profile import ECU_IDS
     from autocan.parquet import export_observer, open_observer
-    from autocan.simulation import Simulation
-    from autocan.traces import TraceRecorder
+    from autocan.scenarios import Scenario
 
-    live_clock = SimulationClock()
-    live: list[FeatureWindow] = []
-    config = FeatureConfig(window_ns=100 * MS)
-    live_pipeline = FeaturePipeline(
-        live_clock,
-        profile_id="democar-network",
-        receiver_id="observer",
-        end_ns=1000 * MS,
-        config=config,
-        on_window=live.append,
+    config = FeatureConfig()
+    scenario = Scenario(
+        profile_id="democar-network", duration_ns=2050 * MS, delivery_delay_ns=delay_ms * MS
     )
+    session = Session(tmp_path, seed=42, profile_id=scenario.profile_id, scenario=scenario)
+    try:
+        session.inputs(throttle=50)
+        session.start()
+        for _ in range(10):
+            session.tick()
+        assert [window.end_ns for window in session.feature_windows] == [500 * MS]
 
-    class TappedBus(VirtualCanAdapter):
-        def receive(self, receiver_id: str, *, received_at_ns: int) -> Delivery | None:
-            result = super().receive(receiver_id, received_at_ns=received_at_ns)
-            if result is not None and receiver_id == "observer":
-                # Flush only earlier deadlines; all receipts at t precede closure at t.
-                live_clock.advance_to(max(live_clock.now_ns, received_at_ns - 1))
-                item = result.observation
-                live_clock.schedule(
-                    received_at_ns, Phase.DELIVERY, lambda: live_pipeline.receive(item)
-                )
-            return result
+        session.pause()
+        for _ in range(12):
+            session.tick()
+        assert [window.end_ns for window in session.feature_windows] == [500 * MS]
 
-    run, dataset = tmp_path / "run", tmp_path / "dataset"
-    with (
-        TraceRecorder(run) as recorder,
-        Simulation(
-            profile_id="democar-network",
-            on_event=recorder.write,
-            bus_factory=lambda: TappedBus(receiver_ids=RECEIVERS),
-            delivery_delay_ns=5 * MS,
-        ) as sim,
-    ):
-        recorder.begin(sim)
-        sim.set_throttle(50)
-        sim.advance_to(350 * MS)
-        sim.set_ecu_publishing("abs", False)
-        sim.advance_to(1000 * MS)
-        recorder.finish(sim.state())
-    live_clock.advance_to(1000 * MS)
-    export_observer(run, dataset, receiver_id="observer")
+        session.offline(True, "abs")
+        session.start()
+        for _ in range(10):
+            session.tick()
+        partial = session.feature_windows[-1]
+        assert partial.end_ns == 1000 * MS and partial.message_count > 0
+        assert next(message for message in partial.messages if message.can_id == 528).timed_out
+
+        for ecu_id in ECU_IDS:
+            if ecu_id != "abs":
+                session.offline(True, ecu_id)
+        for _ in range(20):
+            session.tick()
+        assert [window.end_ns for window in session.feature_windows] == [
+            500 * MS,
+            1000 * MS,
+            1500 * MS,
+            2000 * MS,
+        ]
+        silent = session.feature_windows[-1]
+        assert silent.message_count == 0
+        assert silent.rpm_missing and silent.wheels_missing
+        assert all(message.timed_out for message in silent.messages)
+        session.tick()
+        assert session.stopped
+    finally:
+        session.close()
+
+    dataset = tmp_path / "dataset"
+    export_observer(tmp_path / session.id, dataset, receiver_id="observer")
     offline: list[FeatureWindow] = []
     with open_observer(dataset) as stream:
         clock = SimulationClock()
@@ -231,9 +238,21 @@ def test_live_bus_observations_match_offline_parquet_windows(tmp_path: Path) -> 
             config=config,
             on_window=offline.append,
         )
-        replay_observations(stream.observations, clock, pipeline, end_ns=stream.end_ns)
-    assert len(live) == 10 and offline == live
-    assert next(m for m in offline[-1].messages if m.can_id == 528).timed_out
+        first_window_receipts = 0
+        boundary_receipts = 0
+
+        def count_receipts() -> Iterator[CanObservation]:
+            nonlocal first_window_receipts, boundary_receipts
+            for item in stream.observations:
+                first_window_receipts += item.received_at_ns <= config.window_ns
+                boundary_receipts += item.received_at_ns == config.window_ns
+                yield item
+
+        replay_observations(count_receipts(), clock, pipeline, end_ns=stream.end_ns)
+    assert (boundary_receipts > 0) == (delay_ms == 0)
+    assert first_window_receipts > 0
+    assert session.feature_windows[0].message_count == first_window_receipts
+    assert session.feature_windows == offline
 
 
 def test_reader_rejects_corrupted_observations_and_never_exposes_labels(tmp_path: Path) -> None:

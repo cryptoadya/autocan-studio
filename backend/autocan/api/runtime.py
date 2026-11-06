@@ -6,6 +6,7 @@ from typing import Any
 
 from cantools.database.can import Database
 
+from autocan.api.live_features import LiveFeatureBus
 from autocan.api.observation import FRAME_LIMIT as FRAME_LIMIT
 from autocan.api.observation import SIGNAL_LIMIT as SIGNAL_LIMIT
 from autocan.api.observation import ObservationView as ObservationView
@@ -14,6 +15,7 @@ from autocan.api.timeline import FaultTimeline
 from autocan.dbc import profile_from_version
 from autocan.events import RunEvent
 from autocan.faults import FaultSpec, fault_id
+from autocan.features import FeatureWindow
 from autocan.scenarios import Scenario
 from autocan.simulation import Simulation
 from autocan.traces import TraceRecorder, playback, verify_trace
@@ -51,10 +53,20 @@ class Session:
         self.stopped = False
         self.error: str | None = None
         self.commands = len(scenario.commands) if scenario is not None else 0
+        # The session duration caps history at 240 default (500 ms) windows.
+        self.feature_windows: list[FeatureWindow] = []
+        self._feature_bus: LiveFeatureBus | None = None
+
+        def feature_bus() -> LiveFeatureBus:
+            bus = LiveFeatureBus(MAX_DURATION_NS, self.feature_windows.append)
+            self._feature_bus = bus
+            return bus
+
         self.sim = Simulation(
             seed=seed,
             profile_id=profile_id,
             on_event=self._event,
+            bus_factory=feature_bus if profile_id == "democar-network" else None,
             delivery_delay_ns=scenario.delivery_delay_ns if scenario else 0,
             drop_probability=scenario.drop_probability if scenario else 0,
         )
@@ -161,7 +173,10 @@ class Session:
             return
         now = int(self.sim.state()["sim_time_ns"] or 0)
         self.sim.advance_to(min(now + TICK_NS, self.duration_ns))
-        self.view.sample(int(self.sim.state()["sim_time_ns"] or 0))
+        current = int(self.sim.state()["sim_time_ns"] or 0)
+        if self._feature_bus is not None:
+            self._feature_bus.advance_features_to(current)
+        self.view.sample(current)
         if now + TICK_NS >= self.duration_ns:
             self.stop()
 
@@ -171,6 +186,8 @@ class Session:
         # Flush initial events for a run saved before its first pacing tick.
         if not self.sim.state()["events_emitted"]:
             self.sim.step()
+            if self._feature_bus is not None:
+                self._feature_bus.advance_features_to(int(self.sim.state()["sim_time_ns"] or 0))
         self.sim.pause()
         self.recorder.finish(self.sim.state())
         self.stopped = True
