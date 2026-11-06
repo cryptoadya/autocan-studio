@@ -88,6 +88,7 @@ See the [getting started guide](docs/GETTING_STARTED.md) for headless commands a
 - [Simulation and faults](docs/SIMULATION.md) — profiles, scenarios, and fault semantics
 - [Trace and dataset formats](docs/DATA_FORMATS.md) — JSONL, Parquet, observer data, and generated collections
 - [ML evaluation](docs/ML_EVALUATION.md) — methods, measured results, and reproducibility
+- [M1 Studio performance baseline](docs/benchmarks/m1-studio-2026-11-06/) — live M9 scoring, duration-limit recording, and playback
 
 ## Roadmap
 
