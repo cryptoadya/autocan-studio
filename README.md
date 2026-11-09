@@ -22,7 +22,7 @@ uv run --locked autocan studio
 
 Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The launcher builds the React dashboard and serves it with FastAPI from the same loopback origin. No API keys or CAN hardware are required.
 
-Choose **ABS missing frames** under **Fault scenarios**, then **Run scenario**. Load the saved run and seek through the outage to see wheel-speed freshness change while engine RPM remains fresh. **Deterministic rerun** recomputes the run and checks its canonical events and final state.
+Click **Run guided demo · 12 s**. Watch wheel-speed updates disappear when ABS stops sending, while engine RPM stays fresh, then see reception recover. The run saves automatically. Click **Inspect outage · 6 s** to open that moment in playback; compare **Before outage · 2 s** and **After recovery · 10 s** without finding the recording in a list. **Deterministic rerun** recomputes the selected run and checks its canonical events and final state. No ML model is needed for this demo.
 
 Run the Python tests from the repository root.
 

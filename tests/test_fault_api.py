@@ -90,6 +90,7 @@ def test_rest_catalog_validation_quota_stopped_run_and_reset(tmp_path: Path) -> 
         demos = client.get("/api/scenarios")
         assert demos.status_code == 200
         assert {s["id"] for s in demos.json()} == {
+            "abs_outage_walkthrough",
             "abs_missing_frames",
             "rpm_spike",
             "timing_jitter",
@@ -135,6 +136,54 @@ def test_rest_catalog_validation_quota_stopped_run_and_reset(tmp_path: Path) -> 
         preserved = client.get(new_base + "/state").json()
         assert preserved["recording"] == "saved"
         assert preserved["error"] is None
+
+
+def test_guided_abs_demo_records_loss_recovery_and_replay_checkpoints(tmp_path: Path) -> None:
+    from autocan.catalog import load_demo
+
+    descriptor, scenario = load_demo("abs_outage_walkthrough")
+    session = Session(
+        tmp_path,
+        seed=scenario.seed,
+        profile_id=scenario.profile_id,
+        scenario=scenario,
+        scenario_info=descriptor,
+    )
+    try:
+        session.start()
+        for _ in range(240):
+            session.tick()
+        end = session.snapshot()
+        assert end["recording"] == "saved"
+        assert end["sim_time_ns"] == 12_000_000_000
+        path = tmp_path / session.id
+        for time, status in [
+            (2_000_000_000, "FRESH"),
+            (6_000_000_000, "TIMEOUT"),
+            (10_000_000_000, "FRESH"),
+        ]:
+            saved = saved_view(path, time)
+            assert saved["scenario"] == descriptor
+            assert saved["state"]["kombi_speed_status"] == status
+            assert saved["state"]["kombi_status"] == "FRESH"
+            assert saved["state"]["physical_speed_kph"] > 0
+        wheel_states = [
+            e["title"]
+            for e in end["timeline"]
+            if e["event_kind"] == "EcuStatusChanged" and e["details"] == "WheelSpeeds"
+        ]
+        assert wheel_states == ["KOMBI FRESH", "KOMBI STALE", "KOMBI TIMEOUT", "KOMBI FRESH"]
+        assert [
+            (e["event_kind"], e["sim_time_ns"])
+            for e in end["timeline"]
+            if e["event_kind"] in {"FaultActivated", "FaultCleared"}
+        ] == [
+            ("FaultActivated", 4_000_000_000),
+            ("FaultCleared", 8_000_000_000),
+        ]
+        assert rerun(path)["matches"] is True
+    finally:
+        session.close()
 
 
 def test_invalid_faults_do_not_consume_command_quota(tmp_path: Path) -> None:

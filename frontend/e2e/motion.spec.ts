@@ -4,14 +4,11 @@ import { setRange } from './controls'
 test('drive, coast, reject unsafe reverse, brake and replay model speed', async ({page}, testInfo) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
-  await page.goto('/')
   const previous = await (await page.request.get('/api/simulations/current')).json()
-  if (previous) {
-    await page.getByRole('button', {name: 'Reset · new recording', exact: true}).click()
-    await page.getByRole('button', {name: 'Resume', exact: true}).click()
-  } else {
-    await page.getByRole('button', {name: 'Run demo', exact: true}).click()
-  }
+  // Reset preserves the previous scenario; manual driving needs a fresh unscripted run.
+  if (previous && !previous.stopped) await page.request.post(`/api/simulations/${previous.id}/stop`)
+  await page.goto('/')
+  await page.getByRole('button', {name: 'Run demo', exact: true}).click()
   const gear = page.getByRole('combobox', {name: 'Gear', exact: true})
   const brake = page.getByRole('slider', {name: 'Brake', exact: true})
   const speed = async () => Number((await page.getByTestId('physical-speed').innerText()).replace(/[^0-9.-]/g, ''))

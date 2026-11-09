@@ -9,7 +9,7 @@ export function ScenarioControls({scenarios, view, disabled, onRun}: {
   const [seed, setSeed] = useState('42')
   const scenario = scenarios.find(s => s.id === selected) ?? scenarios[0]
   return <section className="scenario-controls" aria-label="Demo scenarios">
-    <div><h2>Fault scenarios</h2><p>{view?.scenario ? `${view.scenario.name} · ${(view.scenario.duration_ns / 1e9).toFixed(2)} s · ${view.stopped ? 'Saved' : 'Ready / running'}` : 'Three original, reproducible demonstrations.'}</p></div>
+    <div><h2>Fault scenarios</h2><p>{view?.scenario ? `${view.scenario.name} · ${(view.scenario.duration_ns / 1e9).toFixed(2)} s · ${view.stopped ? view.recording === 'saved' ? 'Saved' : 'Recording failed' : 'Ready / running'}` : 'Choose a repeatable fault experiment.'}</p></div>
     <form onSubmit={event => {event.preventDefault(); if (scenario && !disabled) onRun(scenario.id, Number(seed))}}>
       <label>Scenario<select value={scenario?.id ?? ''} disabled={disabled} onChange={e => setSelected(e.target.value)}>
         {scenarios.map(s => <option key={s.id} value={s.id}>{s.name} · {(s.duration_ns / 1e9).toFixed(2)} s</option>)}
