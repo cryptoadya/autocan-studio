@@ -1,8 +1,9 @@
 # Offline anomaly detection and evaluation
 
 AutoCAN Studio compares simple CAN rules and two scikit-learn forests on the
-same causal windows. The detectors run through the headless CLI. The dashboard
-shows CAN measurements and injected fault truth, and has no live detector scores.
+same causal windows. The headless CLI trains and evaluates models offline.
+Studio can load a trusted frozen Random Forest for live scoring and display
+its scores and alerts beside injected fault markers.
 
 ## Observations, splits, and detectors
 
@@ -25,6 +26,21 @@ shows CAN measurements and injected fault truth, and has no live detector scores
 - Out-of-distribution (OOD) scoring keeps unseen fault types and unfamiliar
   normal-driving families in separate domains. It reuses the saved models,
   preprocessing, and thresholds.
+
+## Live and offline parity
+
+Both paths feed the same feature pipeline with CAN deliveries for the selected
+observer. Deliveries at the close timestamp enter the closing window, and the
+virtual clock closes windows during bus silence. Both paths apply the saved
+feature order, imputation, scaling, model and threshold. The regression tests
+require exact window keys and feature values, with score differences at most
+`1e-12` absolute and zero relative tolerance.
+
+Studio displays warm-up scores but excludes them from alerts. An eligible score
+at or above the threshold opens an alert, and two consecutive eligible scores
+below it close the episode. The offline evaluation below uses contiguous
+positive windows without debounce. Playback restores the live alert behavior
+from the stored samples and provenance. [Live ML demo](LIVE_DEMO.md)
 
 ## Frozen synthetic results
 

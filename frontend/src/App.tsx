@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { request, useLiveSocket } from './api'
 import { useStudio } from './store'
 import { Dashboard } from './components/Dashboard'
@@ -25,6 +25,7 @@ export function App() {
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
   const playbackRequest = useRef<AbortController | null>(null)
+  const runsRequest = useRef<AbortController | null>(null)
   useEffect(() => () => {
     playbackRequest.current?.abort()
     playbackRequest.current = null
@@ -32,19 +33,30 @@ export function App() {
   const view = playback ?? live
   const isPlayback = playback !== null
   useLiveSocket(live?.id)
-  const refreshRuns = async () => setRuns(await request<SavedRun[]>('/api/runs'))
+  const refreshRuns = useCallback(() => {
+    runsRequest.current?.abort()
+    const controller = new AbortController()
+    runsRequest.current = controller
+    request<SavedRun[]>('/api/runs', 'GET', undefined, controller.signal)
+      .then(saved => {if (!controller.signal.aborted) setRuns(saved)})
+      .catch(e => {if (!controller.signal.aborted) setError(e.message)})
+  }, [])
+  useEffect(() => {
+    refreshRuns()
+    return () => runsRequest.current?.abort()
+  }, [refreshRuns])
   useEffect(() => {
     let active = true
-    Promise.all([request<Snapshot | null>('/api/simulations/current'), request<SavedRun[]>('/api/runs'),
+    Promise.all([request<Snapshot | null>('/api/simulations/current'),
       request<DemoScenario[]>('/api/scenarios'), request<FaultCatalog>('/api/faults')])
-      .then(([current, saved, demos, faults]) => {if (active) {if (current) useStudio.getState().adopt(current); setRuns(saved); setScenarios(demos); setFaultCatalog(faults)}})
+      .then(([current, demos, faults]) => {if (active) {if (current) useStudio.getState().adopt(current); setScenarios(demos); setFaultCatalog(faults)}})
       .catch(e => {if (active) setError(String(e.message))})
       .finally(() => {if (active) setLoading(false)})
     return () => {active = false}
   }, [])
   useEffect(() => {
-    if (live?.stopped) refreshRuns().catch(e => setError(e.message))
-  }, [live?.stopped, live?.id])
+    if (live?.stopped) refreshRuns()
+  }, [live?.stopped, live?.id, refreshRuns])
   const perform = async (task: () => Promise<void>) => {
     setBusy(true); setError(''); setNotice('')
     try {await task()} catch (e) {setError(e instanceof Error ? e.message : String(e))}
@@ -59,7 +71,7 @@ export function App() {
     const next = await request<Snapshot>(`/api/simulations/${session.id}/${action}`, 'POST')
     // The ordered WS stream updates existing runs; a reset starts a new connection.
     if (next.id !== live?.id) useStudio.getState().adopt(next)
-    if (action === 'stop' || action === 'reset') await refreshRuns()
+    if (action === 'reset') refreshRuns()
   })
   const command = (path: string, method: string, body: unknown) => perform(async () => {
     if (!live) return

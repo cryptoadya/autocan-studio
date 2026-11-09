@@ -44,12 +44,13 @@ and final state. Run IDs and wall-clock timestamps do not affect the comparison.
 Each WebSocket connection starts with a snapshot and continues with ordered
 deltas. Reconnection replaces the client's rolling history. The monitor keeps
 200 deliveries and renders up to 50 rows. The RPM chart retains up to 400 points.
-Display skips are reported separately from recording failures. The launcher
+Display skips are reported separately from recording failures. The dashboard
+loads the verified recording catalog independently of the live controls. The launcher
 binds to loopback and uses local host/origin checks. It is designed for
 single-user operation without authentication. See the
 [REST and WebSocket contracts](DATA_CONTRACTS.md#local-api-and-live-display).
 
-## Offline data path
+## Shared feature pipeline and live scoring
 
 A verified recording can be exported as normalized Parquet or projected into
 the observations of one receiver. Dataset Factory composes that flow across
@@ -58,3 +59,11 @@ Only observable CAN fields and receiver time feed the feature pipeline. The
 separate ground-truth stream supplies labels and evaluation intervals. Features
 close on virtual-time boundaries even when no frames arrive. See
 [trace and dataset formats](DATA_FORMATS.md) and [ML evaluation](ML_EVALUATION.md).
+
+Studio feeds the same pipeline from the network observer's live deliveries and
+advances the feature clock through each simulation tick. An explicitly trusted
+local Random Forest bundle provides the ordered preprocessing, model and
+validation threshold. The recorder stores score samples and model provenance
+alongside the canonical trace. Playback rebuilds the alert timeline from those
+samples, with no model load or scoring. Rerun verifies simulation events and
+final state. See the [live scoring demo](LIVE_DEMO.md).

@@ -30,8 +30,9 @@ aside to repeat training. The commands generate 12 eight-second synthetic
 runs, including nine fault runs, and prepare 960 causal windows. Training
 produces the joint experiment. Studio loads its Random Forest and the
 validation-selected threshold from the three local directories. Use bundles
-you generated or otherwise trust. The dataset, model and recordings stay
-under ignored `data/`.
+you generated or otherwise trust. Loading a saved model requires the Python
+patch version and dependency versions recorded when it was trained. The dataset,
+model and recordings stay under ignored `data/`.
 
 This small recipe demonstrates the workflow. The
 [frozen M9 evaluation](ML_EVALUATION.md) uses separately preserved inputs
@@ -58,7 +59,8 @@ locked frontend dependencies, builds the dashboard and serves it locally.
 3. Click **Stop & save**, choose the run under **Recordings**, and click
    **Load playback**. Confirm **Recorded score** and the saved alert and
    fault tracks. Move **Playback position** to a time on the moving
-   baseline before the fault to see the earlier score.
+   baseline before the fault to see the earlier score. Playback reads the saved
+   samples and can be opened without the original model bundle.
 
 ## Repeat the browser check
 

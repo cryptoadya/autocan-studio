@@ -3,7 +3,7 @@
 import json
 import platform
 import subprocess
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from hashlib import sha256
 from heapq import merge
 from importlib.metadata import version
@@ -107,6 +107,18 @@ def _packages() -> dict[str, str]:
         "python": platform.python_version(),
         **{name: version(name) for name in ("autocan-studio", "cantools", "python-can")},
     }
+
+
+def _compatible_runtime(recorded: Mapping[str, object], current: Mapping[str, object]) -> bool:
+    """Allow V2 repackaging while requiring the same Python and dependencies."""
+    if recorded == current:
+        return True
+    previous = recorded.get("autocan-studio")
+    return (
+        current.get("autocan-studio") == "2.0.0"
+        and previous in ("0.1.0", "1.0.0")
+        and recorded == {**current, "autocan-studio": previous}
+    )
 
 
 def _git_provenance() -> dict[str, object]:
@@ -749,10 +761,10 @@ def rerun(root: Path) -> dict[str, object]:
     meta = verify_trace(root)
     if meta["core_version"] != CORE_VERSION or meta["core_sha256"] != _core_hash():
         raise TraceError("current core is incompatible with the recording")
-    if (
-        meta["profile_sha256"]
-        != sha256(_profile_bytes(profile_from_version(meta["profile_version"]))).hexdigest()
-        or meta["package_versions"] != _packages()
+    profile_hash = sha256(_profile_bytes(profile_from_version(meta["profile_version"]))).hexdigest()
+    recorded_packages = object_value(meta["package_versions"], "package versions")
+    if meta["profile_sha256"] != profile_hash or not _compatible_runtime(
+        recorded_packages, _packages()
     ):
         raise TraceError("current profile or runtime versions are incompatible")
     config = object_value(meta["configuration"], "configuration")

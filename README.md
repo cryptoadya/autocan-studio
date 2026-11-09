@@ -19,7 +19,7 @@ Repeat a vehicle-network failure under controlled conditions, inspect what each 
 
 Five electronic control units (ECUs) exchange messages in the network profile. They represent the engine, ABS/DSC, transmission, body, and instrument cluster (KOMBI). Eight DBC-defined messages travel through a virtual bus with receiver-specific delivery. Faults can suppress publication, drop or delay messages, change their rate, or perturb encoded signals.
 
-The latest published release, v1.0.0, includes the five-ECU simulator and dataset tools. The default branch adds live scoring and offline ML evaluation. [Release notes](https://github.com/cryptoadya/autocan-studio/releases/tag/v1.0.0) · [Unreleased changes](CHANGELOG.md#unreleased)
+V2 builds on the five-ECU simulator and dataset tools in v1.0.0 with offline detector evaluation and live Random Forest scoring. [V2 release notes](CHANGELOG.md#200) · [V1 release](https://github.com/cryptoadya/autocan-studio/releases/tag/v1.0.0)
 
 ## Architecture
 
@@ -84,6 +84,7 @@ See the [getting started guide](docs/GETTING_STARTED.md) for headless commands a
 - DemoCar uses synthetic classic CAN and simplified straight-line vehicle dynamics. The transport omits wire arbitration and physical bus behavior.
 - Studio serves one local simulation at a time, with bounded recordings and display buffers. Virtual-time determinism provides no wall-clock real-time guarantee.
 - Detector training runs offline on synthetic data. Live scoring uses a trusted local Random Forest with a validation-selected threshold.
+- The Python wheel provides the CLI and simulator. The dashboard runs from a source checkout with a local frontend build.
 
 ## Documentation
 

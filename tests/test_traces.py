@@ -137,6 +137,29 @@ def test_artifact_paths_are_fixed_and_symlinks_are_rejected(tmp_path: Path) -> N
         verify_trace(target)
 
 
+@pytest.mark.parametrize("previous_version", ["0.1.0", "1.0.0"])
+def test_rerun_accepts_an_earlier_package_with_identical_core_and_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, previous_version: str
+) -> None:
+    from autocan import traces
+    from autocan.scenarios import Scenario
+
+    target = tmp_path / "run"
+    traces.record_scenario(Scenario.from_dict(offline_scenario()), target)
+    manifest = target / "manifest.json"
+    meta = json.loads(manifest.read_text())
+    meta["package_versions"]["autocan-studio"] = previous_version
+    manifest.write_text(json.dumps(meta))
+    packages = {**traces._packages(), "autocan-studio": "2.0.0"}
+    monkeypatch.setattr(traces, "_packages", lambda: packages)
+    assert traces.rerun(target)["matches"] is True
+
+    meta["package_versions"]["python-can"] = "0.0"
+    manifest.write_text(json.dumps(meta))
+    with pytest.raises(traces.TraceError, match="runtime versions are incompatible"):
+        traces.rerun(target)
+
+
 def test_incompatible_core_rejects_rerun_but_allows_saved_playback(tmp_path: Path) -> None:
     from autocan.scenarios import Scenario
     from autocan.traces import TraceError, playback, record_scenario, rerun

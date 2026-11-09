@@ -21,7 +21,7 @@ from autocan.model_artifacts import MODEL_IDS
 from autocan.ood import DOMAINS
 from autocan.parquet import _file_hash, _finish, _new_output
 from autocan.saved_evaluation import SavedEvaluation, load_saved_evaluation
-from autocan.traces import TraceError, _git_provenance
+from autocan.traces import TraceError, _compatible_runtime, _git_provenance
 from autocan.validation import canonical_bytes, integer, json_object, object_value
 from autocan.window_benchmark import DEFAULT_OUTPUT_BYTES, MAX_OUTPUT_BYTES
 from autocan.window_evaluation import WindowScore, WindowTruth, evaluate_windows
@@ -143,7 +143,6 @@ def _replay(
             "models_trained",
             "thresholds_selected",
             "scores_computed",
-            "package_versions",
         )
         metadata_fields += (
             ("seed", "configuration", "evaluator_version")
@@ -152,6 +151,11 @@ def _replay(
         )
         for field in metadata_fields:
             compare_scientific(archived[field], fresh[field], f"{role}.manifest.{field}")
+        if not _compatible_runtime(
+            object_value(archived["package_versions"], "archived replay package versions"),
+            object_value(fresh["package_versions"], "fresh replay package versions"),
+        ):
+            raise TraceError(f"{role}.manifest.package_versions mismatch")
         metrics = _read_json(a / "metrics.json", MAX_OUTPUT_BYTES)
         previous_metrics = _read_json(original / "metrics.json", MAX_OUTPUT_BYTES)
         content = (
