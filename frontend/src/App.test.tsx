@@ -48,6 +48,22 @@ test('replacing a run leaves exactly one vehicle dashboard and one motion panel'
   expect(screen.getAllByRole('region', {name: 'Scenarios and faults'})).toHaveLength(1)
 })
 
+test('live controls become ready while the saved recording catalog is pending', async () => {
+  let resolveRuns!: (response: Response) => void
+  const pendingRuns = new Promise<Response>(resolve => {resolveRuns = resolve})
+  vi.stubGlobal('fetch', async (path: string) => {
+    if (path === '/api/simulations/current') return Response.json(null)
+    if (path === '/api/runs') return pendingRuns
+    if (path === '/api/scenarios') return Response.json([])
+    if (path === '/api/faults') return Response.json({types: [], messages: []})
+    throw new Error(`Unexpected request: ${path}`)
+  })
+  render(<App />)
+  await waitFor(() => expect(screen.getByRole('button', {name: 'Run demo'})).toBeEnabled())
+  resolveRuns(Response.json([{id: saved.id, duration_ns: saved.duration_ns}]))
+  expect(await screen.findByRole('option', {name: 'saved-ru · 1.00 s'})).toBeInTheDocument()
+})
+
 test.each(['response', 'error'])('returning to live ignores a late playback %s', async outcome => {
   let resolveResponse!: (response: Response) => void
   let rejectResponse!: (error: Error) => void

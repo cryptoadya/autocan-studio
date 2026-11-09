@@ -5,9 +5,9 @@
 - The [v1.0.0 release](https://github.com/cryptoadya/autocan-studio/releases/tag/v1.0.0)
   includes the five-ECU network, interactive faults, Parquet exchange, and
   seeded dataset generation.
-- The default branch adds offline detector evaluation and
+- V2 adds offline detector evaluation and
   [live Random Forest scoring and recorded playback](LIVE_DEMO.md).
-  See the [changelog](../CHANGELOG.md#unreleased) for unreleased changes.
+  See the [V2 release notes](../CHANGELOG.md#200).
 
 ## Potential next steps
 
@@ -16,5 +16,4 @@
 - **Packaged dashboard distribution.** Make the local UI available without a
   source checkout or a local frontend build.
 
-These capabilities are future work. The current evaluation and its limits are
-documented in [ML evaluation](ML_EVALUATION.md).
+See the [current evaluation and its limitations](ML_EVALUATION.md).

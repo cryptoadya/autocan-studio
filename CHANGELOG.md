@@ -1,19 +1,28 @@
 # Changelog
 
-## Unreleased
+## 2.0.0
 
-### Added
+### Simulation and recordings
 
-- Five-ECU DemoCar network with eight DBC messages, per-signal freshness, ignition and engine controls, braking, and gear requests routed over CAN.
-- Eight synthetic fault types, three built-in dashboard scenarios, manual injection and clearing, and a timeline shared by live monitoring and playback.
-- Verified JSONL/Parquet exchange, receiver-specific observations with separate ground truth, and seeded dataset collections across six driving modes.
-- Offline causal feature generation, whole-run splits, and evaluation of fixed rules, Isolation Forest, and Random Forest with validation-selected model thresholds.
-- Held-out fault and normal-driving evaluations, event detection and false-alarm analysis, paired run-bootstrap intervals, and frozen inference measurements with a provenance check.
-- Seeded [live ML demo](docs/LIVE_DEMO.md) with local Random Forest training, fault injection, and recorded-score playback.
+- Drive a synthetic five-ECU DemoCar, inspect receiver-specific CAN measurements and freshness, and run built-in scenarios or inject faults from the dashboard.
+- Automatically save Studio runs at their duration limit, up to 120 virtual seconds within the 32 MiB trace budget. Seek through verified JSONL recordings, exchange traces through Parquet, and recompute compatible runs with deterministic rerun.
+- Keep the live controls available while Studio verifies and loads the saved-recording catalog in the background. Large catalogs can still take time to list.
 
-### Changed
+### Anomaly detection
 
-- Reorganized the public documentation around operating the simulator, its architecture and data contracts, and the measured offline evaluation. Historical verification records remain available through the documentation archive.
+- Train or load a trusted local Random Forest to score observer CAN traffic live. Inspect scores and debounced alerts beside injected fault markers, and replay the saved scores and model provenance.
+- Generate seeded receiver datasets across six driving modes. Compare three fixed rules, Isolation Forest, and Random Forest on causal windows using whole-run splits and frozen validation thresholds.
+- Evaluate held-out faults, unfamiliar normal driving, detection delays, false alarms, and run-level uncertainty. Reproduce the workflow with the [live ML demo](docs/LIVE_DEMO.md) and consult the [frozen results](docs/ML_EVALUATION.md).
+
+### Installation and compatibility
+
+- Install the Python CLI from the source distribution or wheel. Launch the dashboard from a source checkout with Python 3.12, uv 0.13.6, and Node.js 22.12+ with npm.
+- Earlier recordings remain playable when their format is supported. Rerun and trusted pre-release models require matching code, data or profile lineage, and runtime dependencies.
+- Evaluation uses synthetic data only. The frozen Random Forest produced 10 false-alarm episodes over 45.6 seconds of unfamiliar normal driving. The release makes no claim about performance on physical vehicles.
+
+## [1.0.0] — 2026-11-06
+
+- Introduced the five-ECU DemoCar network, interactive fault injection and verified recordings, Parquet trace exchange, and the seeded Dataset Factory.
 
 ## [0.1.0] — 2026-10-30
 
@@ -26,3 +35,5 @@
 - Browser acceptance coverage and a recorded demonstration.
 
 [0.1.0]: https://github.com/cryptoadya/autocan-studio/releases/tag/v0.1.0
+
+[1.0.0]: https://github.com/cryptoadya/autocan-studio/releases/tag/v1.0.0

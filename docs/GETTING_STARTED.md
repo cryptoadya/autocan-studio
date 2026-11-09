@@ -60,8 +60,9 @@ accepts line-oriented controls such as `throttle 50`, `run 100` (milliseconds),
 `offline abs`, `state`, and `quit`. Use `autocan --help` to list commands.
 
 Playback validates the saved artifacts and reads their events. Rerun requires
-compatible core/profile hashes and recorded runtime versions. Use the original
-v0.1.0 core/runtime to rerun v0.1.0 recordings. See the
+compatible core/profile hashes and recorded runtime versions. V2 accepts a
+prior package version when those compatibility checks pass. Use the original
+core and runtime to rerun recordings with older core hashes. See the
 [recording contract](DATA_CONTRACTS.md#recording-and-reproduction) and
 [Parquet and dataset guide](DATA_FORMATS.md) for storage and generation workflows.
 

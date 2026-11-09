@@ -497,16 +497,21 @@ def test_bootstrap_rejects_corrupted_inputs_before_publishing(
 
 
 def test_live_random_forest_matches_offline_and_records_provenance(
-    tmp_path: Path, ml_joint: Path, ml_prepared: Path, ml_source: Path
+    tmp_path: Path,
+    ml_joint: Path,
+    ml_prepared: Path,
+    ml_source: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from autocan.api.runtime import Session
+    from autocan.api.runtime import Session, saved_view
     from autocan.live_scoring import load_live_model
     from autocan.ml_ood import _run_windows
     from autocan.model_artifacts import load_frozen_experiment
     from autocan.network_profile import ECU_IDS
     from autocan.parquet import export_observer, export_trace, import_trace
+    from autocan.random_forest import FittedRandomForest
     from autocan.scenarios import Scenario
-    from autocan.traces import rerun, verify_trace
+    from autocan.traces import TraceError, rerun, verify_trace
 
     model = load_live_model(ml_joint, ml_prepared, ml_source)
     scenario = Scenario(profile_id="democar-network", duration_ns=1_050_000_000)
@@ -547,10 +552,49 @@ def test_live_random_forest_matches_offline_and_records_provenance(
         "feature_schema_version": frozen.manifest["feature_schema_version"],
     }
     assert verify_trace(run)["live_model"] == provenance
+
+    def forbid_scoring(*args: object, **kwargs: object) -> None:
+        pytest.fail("playback or rerun rescored the recording")
+
+    monkeypatch.setattr(FittedRandomForest, "score", forbid_scoring)
+    live = session.snapshot()["anomaly"]
+    assert saved_view(run)["anomaly"] == live
+    assert saved_view(run, 0)["anomaly"] == {"model": provenance, "scores": [], "alerts": []}
+    seek = saved_view(run, 253_000_000)["anomaly"]
+    assert seek["scores"] == live["scores"][:2]
     export_trace(run, tmp_path / "parquet")
     restored = tmp_path / "restored"
     assert import_trace(tmp_path / "parquet", restored)["live_model"] == provenance
     assert rerun(restored)["matches"] is True
+
+    path = run / "manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest["live_model"]["threshold"] = 1.5
+    path.write_text(json.dumps(manifest))
+    with pytest.raises(TraceError, match="model threshold"):
+        saved_view(run, 0)
+
+
+def test_v2_loads_a_trusted_prerelease_random_forest_with_the_same_runtime(
+    tmp_path: Path,
+    ml_joint: Path,
+    ml_prepared: Path,
+    ml_source: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from autocan import model_artifacts
+    from autocan.live_scoring import load_live_model
+    from autocan.traces import _packages
+
+    experiment = copytree(ml_joint, tmp_path / "experiment")
+    path = experiment / "manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest["package_versions"]["autocan-studio"] = "0.1.0"
+    path.write_text(json.dumps(manifest))
+    packages = {**_packages(), "autocan-studio": "2.0.0"}
+    monkeypatch.setattr(model_artifacts, "_packages", lambda: packages)
+    model = load_live_model(experiment, ml_prepared, ml_source)
+    assert model.model_sha256 == manifest["artifacts"]["models/random_forest/model.pkl"]["sha256"]
 
 
 def test_frozen_loader_rejects_pickle_changed_after_inspection(

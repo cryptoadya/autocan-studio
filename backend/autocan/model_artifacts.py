@@ -22,7 +22,7 @@ from autocan.preprocessing import Preprocessor
 from autocan.random_forest import MODEL_ID as RF_ID
 from autocan.random_forest import MODEL_VERSION as RF_VERSION
 from autocan.random_forest import FittedRandomForest
-from autocan.traces import TraceError, _packages
+from autocan.traces import TraceError, _compatible_runtime, _packages
 from autocan.training_artifacts import LoadedTrainingData, _path
 from autocan.validation import canonical_bytes, integer, number, object_value
 from autocan.window_benchmark import MAX_OUTPUT_BYTES
@@ -78,7 +78,7 @@ def inspect_frozen_experiment(root: Path, data: LoadedTrainingData) -> FrozenExp
             for name in ("pyarrow", "numpy", "scipy", "scikit-learn", "joblib", "threadpoolctl")
         },
     }
-    if packages != current:
+    if not _compatible_runtime(packages, current):
         raise TraceError("frozen model package environment mismatch")
     code = sha256()
     for name in (
