@@ -1,61 +1,14 @@
 # AutoCAN Studio
 
+**[AutoCAN Studio v2.0.0 release](https://github.com/cryptoadya/autocan-studio/releases/tag/v2.0.0)**
+
 AutoCAN Studio is a local lab for simulating Controller Area Network (CAN) traffic, injecting faults, evaluating detectors offline, and inspecting live anomaly scores.
 
 Repeat a vehicle-network failure under controlled conditions, inspect what each receiver could observe, and compare detectors against known fault intervals. DemoCar uses synthetic physics and original DBC profiles for experimentation without vehicle hardware. Real-vehicle diagnostics are outside its scope.
 
-[![AutoCAN Studio fault lab showing a recorded RPM spike and the CAN freshness timeline](docs/images/m6-fault-scenarios.png)](docs/images/m7-studio-acceptance.png)
+[![AutoCAN Studio fault lab showing a recorded RPM spike and the CAN freshness timeline](docs/images/m6-fault-scenarios.png)](docs/images/m6-fault-scenarios.png)
 
 *Fault lab during playback of a synthetic RPM spike. [Watch the live ML demo](docs/images/m11-live-ml.webm) · [Train and run it from a clean clone](docs/LIVE_DEMO.md)*
-
-## What you can do
-
-| Surface | Capabilities |
-| --- | --- |
-| **Dashboard** | Drive a simulated vehicle, inspect decoded CAN frames and per-message freshness, inject faults or run built-in scenarios, and save, seek through, or recompute a recording. |
-| **Headless CLI** | Run seeded JSON scenarios on an integer virtual clock. Record, verify, replay, and rerun them. Exchange traces through Parquet and generate collections across six driving modes with separate fault labels. |
-| **Live ML** | Score DemoCar network sessions with a trusted local Random Forest, compare alert and fault tracks, and seek through recorded scores. |
-| **Offline research** | Build causal feature windows, compare three fixed rules with two scikit-learn models, and evaluate saved scores for window accuracy, fault detection, false alarms, uncertainty, and inference performance. |
-
-Five electronic control units (ECUs) exchange messages in the network profile. They represent the engine, ABS/DSC, transmission, body, and instrument cluster (KOMBI). Eight DBC-defined messages travel through a virtual bus with receiver-specific delivery. Faults can suppress publication, drop or delay messages, change their rate, or perturb encoded signals.
-
-V2 builds on the five-ECU simulator and dataset tools in v1.0.0 with offline detector evaluation and live Random Forest scoring. [V2 release notes](CHANGELOG.md#200) · [V1 release](https://github.com/cryptoadya/autocan-studio/releases/tag/v1.0.0)
-
-## Architecture
-
-```mermaid
-flowchart LR
-    Sim["Virtual clock + vehicle model"] --> ECU["ECU models + DBC"]
-    ECU <--> CAN["python-can virtual transport"]
-    CAN -->|Observer deliveries| Dash["FastAPI / WebSocket + React"]
-    ECU -->|KOMBI measurements| Dash
-    CAN --> Trace["JSONL recording"]
-    Sim -->|Commands and fault truth| Trace
-    Trace --> Data["Parquet + receiver datasets"]
-    Data --> Eval["Causal windows + offline evaluation"]
-    CAN -->|Observer deliveries| Live["Live features + trusted Random Forest"]
-    Live -->|Scores and alerts| Dash
-    Live -->|Score samples and model provenance| Trace
-```
-
-The simulator owns physics and scheduling. ECU models receive narrow sensor or actuator interfaces and their own CAN deliveries. KOMBI derives measurements and freshness from its received CAN stream. Recording keeps applied commands and fault truth separate from observations. Playback reads saved events, while rerun executes the simulation again from the recorded configuration and commands.
-
-## Machine learning and evaluation
-
-The offline pipeline compares heartbeat timeout, RPM derivative, and wheel-speed disagreement rules with an **Isolation Forest** fitted on normal training windows and a supervised **Random Forest**. It splits by whole run, fits preprocessing on training data, and freezes model thresholds on validation before scoring held-out data.
-
-The following measurements come from the checked-in frozen synthetic evaluation. Precision, recall, and F1 are window metrics. Detection latency is the median virtual time from fault onset to a matched alert, measured only for detected episodes.
-
-| Evaluation set | Detector | Precision | Recall | F1 | Events detected | Median detection latency |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| In-distribution test | Random Forest | 1.000 | 0.967 | 0.983 | 3/3 | 10 ms |
-| In-distribution test | Isolation Forest | 0.316 | 0.400 | 0.353 | 2/3 | 0 ms |
-| Held-out fault types | Random Forest | 0.961 | 0.851 | 0.902 | 6/6 | 60 ms |
-| Held-out fault types | Isolation Forest | 0.264 | 0.161 | 0.200 | 3/6 | 40 ms |
-
-On six unfamiliar normal runs (45.6 seconds total), Random Forest produced **10 false-alarm episodes**, Isolation Forest **15**, and each fixed rule **zero**. The best rule by test-window F1 scored **0.500** and detected **1/3** test episodes. A separate Apple M1 benchmark measured **3.64 ms p95** for single-window Random Forest preprocessing and scoring.
-
-The small synthetic fixture limits the conclusions, and the false alarms show sensitivity to unfamiliar normal driving. The repository includes the reports and manifests. Exact replay requires original local datasets and saved model artifacts outside Git. [Evaluation methodology, results, and provenance](docs/ML_EVALUATION.md)
 
 ## Quick start
 
@@ -78,6 +31,40 @@ uv run --locked pytest
 ```
 
 See the [getting started guide](docs/GETTING_STARTED.md) for headless commands and frontend tests. The [live ML demo](docs/LIVE_DEMO.md) trains its own model from seeded synthetic runs.
+
+## What you can do
+
+| Surface | Capabilities |
+| --- | --- |
+| **Dashboard** | Drive a simulated vehicle, inspect decoded CAN frames and per-message freshness, inject faults or run built-in scenarios, and save, seek through, or recompute a recording. |
+| **Headless CLI** | Run seeded JSON scenarios on an integer virtual clock. Record, verify, replay, and rerun them. Exchange traces through Parquet and generate collections across six driving modes with separate fault labels. |
+| **Live ML** | Score DemoCar network sessions with a trusted local Random Forest, compare alert and fault tracks, and seek through recorded scores. |
+| **Offline research** | Build causal feature windows, compare three fixed rules with two scikit-learn models, and evaluate saved scores for window accuracy, fault detection, false alarms, uncertainty, and inference performance. |
+
+Five electronic control units (ECUs) exchange messages in the network profile. They represent the engine, ABS/DSC, transmission, body, and instrument cluster (KOMBI). Eight DBC-defined messages travel through a virtual bus with receiver-specific delivery. Faults can suppress publication, drop or delay messages, change their rate, or perturb encoded signals.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Sim["Virtual clock + vehicle model"] --> ECU["ECU models + DBC"]
+    ECU <--> CAN["python-can virtual transport"]
+    CAN -->|Observer deliveries| Dash["FastAPI / WebSocket + React"]
+    ECU -->|KOMBI measurements| Dash
+    CAN --> Trace["JSONL recording"]
+    Sim -->|Commands and fault truth| Trace
+    Trace --> Data["Parquet + receiver datasets"]
+    Data --> Eval["Causal windows + offline evaluation"]
+    CAN -->|Observer deliveries| Live["Live features + trusted Random Forest"]
+    Live -->|Scores and alerts| Dash
+    Live -->|Score samples and model provenance| Trace
+```
+
+The simulator owns physics and scheduling. ECU models receive narrow sensor or actuator interfaces and their own CAN deliveries. KOMBI derives measurements and freshness from its received CAN stream. Recording keeps applied commands and fault truth separate from observations. Playback reads saved events, while rerun executes the simulation again from the recorded configuration and commands.
+
+## Machine learning and evaluation
+
+The offline evaluation compares three fixed rules, Isolation Forest, and Random Forest on synthetic CAN traffic. The frozen Random Forest produced **10 false-alarm episodes in 45.6 seconds** of unfamiliar normal driving. [Evaluation methodology, full results, and provenance](docs/ML_EVALUATION.md)
 
 ## Limitations
 
