@@ -15,6 +15,11 @@ builds the UI. The Python wheel provides the headless CLI and API. Dashboard
 startup requires the frontend sources in the checkout. Use the
 [live ML demo](LIVE_DEMO.md) to train and load a model from synthetic data.
 
+- **Run guided demo · 12 s** drives a scripted ABS outage: normal reception for
+  four seconds, missing ABS messages for four seconds, then recovery. Received
+  wheel speed and engine RPM stay visible in the top card. After automatic save,
+  **Inspect outage · 6 s** opens playback directly; the adjacent buttons compare
+  the baseline at 2 s and recovery at 10 s. **Back to live controls** exits playback.
 - **Run demo** starts a fresh recording. Move and release **Throttle** to apply
   the request. **Take offline** suppresses Engine ECU publication so the cluster
   retains its last CAN RPM as it becomes stale and times out. **Stop engine**

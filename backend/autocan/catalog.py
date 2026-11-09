@@ -11,6 +11,10 @@ from autocan.scenarios import Scenario
 from autocan.validation import json_object
 
 DEMOS = {
+    "abs_outage_walkthrough": (
+        "ABS signal loss · guided demo",
+        "Watch normal reception, an ABS publication outage, and recovery over 12 seconds.",
+    ),
     "abs_missing_frames": (
         "ABS missing frames",
         "ABS stops publishing during acceleration; KOMBI becomes STALE, then TIMEOUT.",

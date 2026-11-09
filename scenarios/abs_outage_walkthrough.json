@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "profile_id": "democar-network",
+  "duration_ns": 12000000000,
+  "seed": 42,
+  "commands": [
+    {"at_ns": 0, "kind": "set_brake", "percent": 100},
+    {"at_ns": 0, "kind": "set_gear", "gear": "D"},
+    {"at_ns": 100000000, "kind": "set_throttle", "percent": 50},
+    {"at_ns": 100000000, "kind": "set_brake", "percent": 0},
+    {"at_ns": 4000000000, "kind": "inject_fault", "fault": {
+      "fault_id": "guided-abs-outage", "type": "ecu_offline", "target_ecu": "abs",
+      "target_message_id": null, "parameters": {}, "seed": 1
+    }},
+    {"at_ns": 8000000000, "kind": "clear_fault", "fault_id": "guided-abs-outage"}
+  ]
+}

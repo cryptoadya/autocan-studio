@@ -10,6 +10,7 @@ import { CanMonitor } from './components/CanMonitor'
 import { Recordings } from './components/Recordings'
 import { FaultLab } from './components/FaultLab'
 import { ScenarioControls } from './components/ScenarioControls'
+import { GuidedDemo } from './components/GuidedDemo'
 import type { DemoScenario, FaultCatalog, SavedRun, Snapshot } from './types'
 
 export function App() {
@@ -77,6 +78,11 @@ export function App() {
     if (!live) return
     await request(`/api/simulations/${live.id}/${path}`, method, body)
   })
+  const runScenario = (scenario_id: string, seed: number) => perform(async () => {
+    const session = await request<Snapshot>('/api/simulations', 'POST', {scenario_id, seed})
+    useStudio.getState().adopt(session)
+    await request(`/api/simulations/${session.id}/start`, 'POST')
+  })
   const load = async (id: string, time?: number) => {
     playbackRequest.current?.abort()
     const controller = new AbortController()
@@ -117,6 +123,10 @@ export function App() {
     <main>
       <div className="workspace-heading"><div><h1>Vehicle lab</h1><p>{view && view.state.profile_id !== 'democar-network' ? 'Engine ECU → CAN → KOMBI. One signal, the complete chain.' : 'Engine · ABS/DSC · Transmission · Body · KOMBI. Connected through CAN.'}</p></div>
         <div className="connection"><span className={`indicator ${!connected ? 'off' : ''}`} />{loading ? 'Connecting…' : connected ? 'Connected locally' : live ? 'Reconnecting…' : 'Ready locally'}</div></div>
+      {(error || view?.error) && <div role="alert" className="message error">{error || view?.error}</div>}
+      <GuidedDemo scenarios={scenarios} view={view} busy={busy}
+        runDisabled={busy || loading || isPlayback || !!(live && !live.stopped)}
+        onRun={runScenario} onSeek={(id, time) => {void load(id, time)}} onLive={returnToLive} />
       <div className="run-toolbar">
         <div className="run-identity"><strong className={isPlayback ? 'mode playback' : 'mode'}>{isPlayback ? 'PLAYBACK' : 'LIVE'}</strong>
           <span className="run-id">{view ? `Run ${view.id.slice(0, 8)}` : 'DemoCar · seed 42'}</span>
@@ -129,15 +139,10 @@ export function App() {
           <button className="quiet" disabled={busy || loading || isPlayback || !live || !connected} onClick={() => control('reset')}>Reset · new recording</button>
         </div>
       </div>
-      {(error || view?.error) && <div role="alert" className="message error">{error || view?.error}</div>}
       {notice && <div role="status" className="message success">{notice}</div>}
       {isPlayback && <div className="playback-banner">Viewing saved events. Live controls are disabled; the simulation is paused.</div>}
       <ScenarioControls scenarios={scenarios} view={view} disabled={busy || loading || isPlayback || !!(live && !live.stopped)}
-        onRun={(scenario_id, seed) => perform(async () => {
-          const session = await request<Snapshot>('/api/simulations', 'POST', {scenario_id, seed})
-          useStudio.getState().adopt(session)
-          await request(`/api/simulations/${session.id}/start`, 'POST')
-        })} />
+        onRun={runScenario} />
       <Dashboard key={view?.id} state={view?.state} disabled={disabled}
         onThrottle={value => command('inputs', 'PATCH', {throttle: value})}
         onIgnition={ignition => command('inputs', 'PATCH', {ignition})}

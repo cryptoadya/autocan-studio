@@ -11,7 +11,21 @@ publication controls, and fault injections are recorded as distinct commands.
 Playback restores a bounded fault timeline from saved events. For offline
 detection against fault ground truth, see [ML evaluation](ML_EVALUATION.md).
 
-## Run three synthetic demonstrations
+## Guided ABS demonstration
+
+Click **Run guided demo · 12 s** at the top of Studio. The car accelerates;
+ABS publication stops at 4 s and resumes at 8 s. The card shows actual received
+wheel speed and RPM, separately from the scripted sequence. A TIMEOUT retains
+the last wheel-speed value; it does not mean the car stopped. At 12 s the run
+saves automatically. **Inspect outage · 6 s**, **Before outage · 2 s**, and
+**After recovery · 10 s** open the saved observations directly. Early stops are
+labelled as partial recordings, and checkpoints beyond the saved end are disabled.
+
+The source is `scenarios/abs_outage_walkthrough.json`. It also runs through the
+headless CLI. This demo needs no ML model. The original short scenarios below
+remain available for detailed inspection.
+
+## Run three short synthetic demonstrations
 
 ```sh
 uv run --locked autocan run scenarios/abs_missing_frames.json --output data/abs-missing
@@ -73,7 +87,7 @@ actual end time rather than running the unused remainder of the preset.
 
 | Endpoint | Behavior |
 | --- | --- |
-| `GET /api/scenarios` | Three built-in IDs, descriptions, profile, duration, default seed and source SHA-256. |
+| `GET /api/scenarios` | Four built-in IDs, descriptions, profile, duration, default seed and source SHA-256. |
 | `GET /api/faults` | Eight fault types and parameter metadata; DBC-derived message publishers, analog signals, ranges, resolution and units. |
 | `POST /api/simulations` with `scenario_id`, optional `seed` | Create the selected scenario paused; infer its network profile. An explicitly conflicting profile is rejected. Then POST its `/start` action. |
 | `POST /api/simulations/{id}/faults` with `{"fault": {...}}` | Validate the library specification and reserve one command; return `applied_at_ns`. |
@@ -105,7 +119,7 @@ form values.
 The optional `scenario` manifest metadata records ID, name/description, profile,
 effective seed, declared duration and original JSON checksum. It does not replace
 the applied log or the actual recorded end time. Historical manifests without it
-remain supported. The wheel includes the exact three scenario files from
+remain supported. The wheel includes the exact four scenario files from
 `scenarios/`; an editable checkout uses those originals without a second copy.
 
 ## Schema and parameters
