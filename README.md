@@ -6,9 +6,9 @@ AutoCAN Studio is a local lab for simulating Controller Area Network (CAN) traff
 
 Repeat a vehicle-network failure under controlled conditions, inspect what each receiver could observe, and compare detectors against known fault intervals. DemoCar uses synthetic physics and original DBC profiles for experimentation without vehicle hardware. Real-vehicle diagnostics are outside its scope.
 
-[![AutoCAN Studio fault lab showing a recorded RPM spike and the CAN freshness timeline](docs/images/m6-fault-scenarios.png)](docs/images/m6-fault-scenarios.png)
+![AutoCAN Studio live anomaly score crosses the threshold after an ABS/DSC publication outage](docs/images/m11-live-ml.gif)
 
-*Fault lab during playback of a synthetic RPM spike. [Watch the live ML demo](docs/images/m11-live-ml.webm) · [Train and run it from a clean clone](docs/LIVE_DEMO.md)*
+*Live Random Forest scoring during a synthetic ABS/DSC outage. [Full video (WebM)](docs/images/m11-live-ml.webm) · [Fault Lab screenshot](docs/images/m6-fault-scenarios.png) · [Reproduce the demo](docs/LIVE_DEMO.md)*
 
 ## Quick start
 
