@@ -1,14 +1,12 @@
 # AutoCAN Studio
 
-**[AutoCAN Studio v2.0.0 release](https://github.com/cryptoadya/autocan-studio/releases/tag/v2.0.0)**
+AutoCAN Studio is a portfolio project for simulating how vehicle control units communicate over the Controller Area Network (CAN). Working on cars is a hobby of mine, and this project brings that interest into software.
 
-AutoCAN Studio is a local lab for simulating Controller Area Network (CAN) traffic, injecting faults, evaluating detectors offline, and inspecting live anomaly scores.
+In the guided demo, the ABS unit stops sending messages. The instrument cluster loses wheel-speed updates while engine RPM stays fresh. The run saves automatically for playback.
 
-Repeat a vehicle-network failure under controlled conditions, inspect what each receiver could observe, and compare detectors against known fault intervals. DemoCar uses synthetic physics and original DBC profiles for experimentation without vehicle hardware. Real-vehicle diagnostics are outside its scope.
+![Guided ABS demo in AutoCAN Studio. Wheel-speed data times out while engine RPM stays fresh. Playback compares the same signals before, during, and after the outage.](docs/images/abs-guided-demo.gif)
 
-![AutoCAN Studio live anomaly score crosses the threshold after an ABS/DSC publication outage](docs/images/m11-live-ml.gif)
-
-*Live Random Forest scoring during a synthetic ABS/DSC outage. [Full video (WebM)](docs/images/m11-live-ml.webm) · [Fault Lab screenshot](docs/images/m6-fault-scenarios.png) · [Reproduce the demo](docs/LIVE_DEMO.md)*
+Playback compares **2 s** before the outage, **6 s** during the outage, and **10 s** after recovery. [Watch the 28-second recording (MP4)](docs/images/abs-guided-demo.mp4)
 
 ## Quick start
 
@@ -22,7 +20,11 @@ uv run --locked autocan studio
 
 Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The launcher builds the React dashboard and serves it with FastAPI from the same loopback origin. No API keys or CAN hardware are required.
 
-Click **Run guided demo · 12 s**. Watch wheel-speed updates disappear when ABS stops sending, while engine RPM stays fresh, then see reception recover. The run saves automatically. Click **Inspect outage · 6 s** to open that moment in playback; compare **Before outage · 2 s** and **After recovery · 10 s** without finding the recording in a list. **Deterministic rerun** recomputes the selected run and checks its canonical events and final state. No ML model is needed for this demo.
+1. Click **Run guided demo · 12 s**. The car accelerates, ABS stops publishing at 4 s, and reception resumes at 8 s.
+2. When the run saves, click **Inspect outage · 6 s**. The wheel-speed value stays on screen as the last received reading, marked `TIMEOUT`. Engine RPM is still `FRESH`.
+3. Use **Before outage · 2 s** and **After recovery · 10 s** to compare the recording. In **Recordings**, click **Deterministic rerun** to verify that a new simulation produces the same events and final state.
+
+The guided demo runs with the default setup. For other scenarios, headless commands, and frontend tests, see the [getting started guide](docs/GETTING_STARTED.md).
 
 Run the Python tests from the repository root.
 
@@ -30,20 +32,9 @@ Run the Python tests from the repository root.
 uv run --locked pytest
 ```
 
-See the [getting started guide](docs/GETTING_STARTED.md) for headless commands and frontend tests. The [live ML demo](docs/LIVE_DEMO.md) trains its own model from seeded synthetic runs.
+## How it works
 
-## What you can do
-
-| Surface | Capabilities |
-| --- | --- |
-| **Dashboard** | Drive a simulated vehicle, inspect decoded CAN frames and per-message freshness, inject faults or run built-in scenarios, and save, seek through, or recompute a recording. |
-| **Headless CLI** | Run seeded JSON scenarios on an integer virtual clock. Record, verify, replay, and rerun them. Exchange traces through Parquet and generate collections across six driving modes with separate fault labels. |
-| **Live ML** | Score DemoCar network sessions with a trusted local Random Forest, compare alert and fault tracks, and seek through recorded scores. |
-| **Offline research** | Build causal feature windows, compare three fixed rules with two scikit-learn models, and evaluate saved scores for window accuracy, fault detection, false alarms, uncertainty, and inference performance. |
-
-Five electronic control units (ECUs) exchange messages in the network profile. They represent the engine, ABS/DSC, transmission, body, and instrument cluster (KOMBI). Eight DBC-defined messages travel through a virtual bus with receiver-specific delivery. Faults can suppress publication, drop or delay messages, change their rate, or perturb encoded signals.
-
-## Architecture
+Five simulated control units exchange eight messages defined in an original DBC profile, which describes how signals are encoded in CAN frames. Python runs the simulation and `python-can` provides the virtual bus. FastAPI serves the React and TypeScript dashboard and streams updates over WebSocket.
 
 ```mermaid
 flowchart LR
@@ -53,18 +44,17 @@ flowchart LR
     ECU -->|KOMBI measurements| Dash
     CAN --> Trace["JSONL recording"]
     Sim -->|Commands and fault truth| Trace
-    Trace --> Data["Parquet + receiver datasets"]
-    Data --> Eval["Causal windows + offline evaluation"]
-    CAN -->|Observer deliveries| Live["Live features + trusted Random Forest"]
-    Live -->|Scores and alerts| Dash
-    Live -->|Score samples and model provenance| Trace
+    Trace --> Playback["Verified playback"]
+    Trace --> Rerun["Deterministic rerun"]
 ```
 
-The simulator owns physics and scheduling. ECU models receive narrow sensor or actuator interfaces and their own CAN deliveries. KOMBI derives measurements and freshness from its received CAN stream. Recording keeps applied commands and fault truth separate from observations. Playback reads saved events, while rerun executes the simulation again from the recorded configuration and commands.
+- **Virtual time.** The simulator defines the order of events that share a timestamp. Live mode and the headless CLI both use the same simulation clock.
+- **Receiver view.** The instrument cluster gets its speed and RPM from CAN deliveries. Its freshness timers can expire when messages stop while the vehicle simulation keeps running.
+- **Record and verify.** Playback shows saved observations at a selected time. Rerun starts a new simulation with the recorded configuration and commands, then compares events and final state.
 
 ## Machine learning and evaluation
 
-The offline evaluation compares three fixed rules, Isolation Forest, and Random Forest on synthetic CAN traffic. The frozen Random Forest produced **10 false-alarm episodes in 45.6 seconds** of unfamiliar normal driving. [Evaluation methodology, full results, and provenance](docs/ML_EVALUATION.md)
+The CLI can generate synthetic datasets with separate fault labels and export traces to Parquet. The offline experiment compares three fixed rules, Isolation Forest, and Random Forest. The frozen Random Forest produced **10 false-alarm episodes in 45.6 seconds** of unfamiliar normal driving. The [evaluation report](docs/ML_EVALUATION.md) documents the sample size and how the metrics were measured. A separate [live scoring demo](docs/LIVE_DEMO.md) trains a local model and displays its alerts alongside injected faults.
 
 ## Limitations
 
@@ -86,4 +76,4 @@ The offline evaluation compares three fixed rules, Isolation Forest, and Random 
 
 Potential next steps include broader synthetic evaluation across normal driving regimes and a packaged dashboard distribution. See the [roadmap](docs/ROADMAP.md) for scope and status.
 
-[Changelog](CHANGELOG.md) · [MIT license](LICENSE)
+[v2.0.0 release](https://github.com/cryptoadya/autocan-studio/releases/tag/v2.0.0) · [Changelog](CHANGELOG.md) · [MIT license](LICENSE)
