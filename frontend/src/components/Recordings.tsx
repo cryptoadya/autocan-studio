@@ -20,14 +20,20 @@ export function Recordings({runs, view, busy, onLoad, onRerun, onLive}: Props) {
     }
   }, [view])
   // A direct checkpoint can load before the background recording catalog arrives.
-  const choices = view?.mode === 'playback' && !runs.some(run => run.id === view.id)
-    ? [...runs, {id: view.id, duration_ns: view.duration_ns ?? view.sim_time_ns}] : runs
+  const choices: SavedRun[] = view?.mode === 'playback' && !runs.some(run => run.id === view.id)
+    ? [...runs, {
+      id: view.id,
+      duration_ns: view.duration_ns ?? view.sim_time_ns,
+      scenario_name: view.scenario?.name,
+    }] : runs
   return <section className="recordings">
     <div><h2>Recordings</h2><p>Verified playback reads saved events. Rerun computes them again.</p></div>
     <div className="recording-actions">
       <select aria-label="Saved recording" value={selected} onChange={e => setSelected(e.target.value)}>
         <option value="">{choices.length ? 'Select a saved run' : 'Stop & save to create a recording'}</option>
-        {choices.map(run => <option key={run.id} value={run.id}>{run.id.slice(0, 8)} · {(run.duration_ns / 1e9).toFixed(2)} s</option>)}
+        {choices.map(run => <option key={run.id} value={run.id}>
+          {run.scenario_name || 'Untitled run'} · {(run.duration_ns / 1e9).toFixed(2)} s · {run.id.slice(0, 8)}
+        </option>)}
       </select>
       <button className="secondary" disabled={!selected || busy} onClick={() => onLoad(selected)}>Load playback</button>
       <button className="secondary" disabled={!selected || busy} onClick={() => onRerun(selected)}>Deterministic rerun</button>

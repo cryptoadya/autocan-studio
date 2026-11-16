@@ -148,7 +148,7 @@ td { color: #566d5f; }
 .monitor-footer { display: flex; justify-content: space-between; padding: 10px 22px; gap: 10px; font-size: 10px; color: #88978d; border-top: 1px solid var(--line); }
 .recordings { padding: 20px 0; border-bottom: 1px solid #d9e2dc; display: flex; flex-wrap: wrap; align-items: center; gap: 18px 30px; justify-content: space-between; }
 .recordings p { font-size: 11px; color: #7a8c80; margin-top: 5px; }
-.recording-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.recording-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; max-width: 100%; }
 select { border: 1px solid #d1ddd4; padding: 9px; border-radius: 4px; color: #536a5a; background: white; font-size: 12px; max-width: 100%; }
 .recording-actions button { font-size: 11px; }
 .playback-seek { width: 100%; }
