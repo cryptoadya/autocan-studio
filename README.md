@@ -18,7 +18,7 @@ cd autocan-studio
 uv run --locked autocan studio
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The launcher builds the React dashboard and serves it with FastAPI from the same loopback origin. No API keys or CAN hardware are required.
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The first launch installs the frontend dependencies and builds the React dashboard. Later launches reuse them when they are up to date. No API keys or CAN hardware are required.
 
 1. Click **Run guided demo · 12 s**. The car accelerates, ABS stops publishing at 4 s, and reception resumes at 8 s.
 2. When the run saves, click **Inspect outage · 6 s**. The wheel-speed value stays on screen as the last received reading, marked `TIMEOUT`. Engine RPM is still `FRESH`.
