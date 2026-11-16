@@ -45,8 +45,8 @@ uv run --locked autocan studio --trusted-model \
   data/live-demo/experiment data/live-demo/prepared data/live-demo/source
 ```
 
-Open [Studio on loopback](http://127.0.0.1:8000). The launcher installs the
-locked frontend dependencies, builds the dashboard and serves it locally.
+Open [Studio on loopback](http://127.0.0.1:8000). The launcher prepares the
+dashboard when needed and reuses the frontend build on unchanged launches.
 
 1. Click **Run demo** to start the network profile with seed **42**. With the
    vehicle stopped and the engine running, apply **Brake 100%**, select **D**,
