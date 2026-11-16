@@ -82,7 +82,11 @@ export interface WireMessage extends Snapshot {
   seq: number
   skipped_frames: number
 }
-export interface SavedRun { id: string; duration_ns: number }
+export interface SavedRun {
+  id: string
+  duration_ns: number
+  scenario_name?: string
+}
 export interface DemoScenario {
   id: string; name: string; description: string; duration_ns: number
   profile_id: string; seed: number; source_sha256: string

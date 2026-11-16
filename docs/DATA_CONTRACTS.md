@@ -361,7 +361,7 @@ not exposed.
 | `POST /api/simulations/{id}/start`, `/pause`, `/stop`, `/reset` | Resume, pause, finalize, or finalize and allocate a fresh run |
 | `PATCH /api/simulations/{id}/inputs` | Nonempty subset of `{throttle: 0, brake: 100, gear: "D", ignition: "ON", engine_running: true}`; validated controls, returns canonical `applied_at_ns` |
 | `POST /api/simulations/{id}/faults` | `{offline: true, ecu_id: "abs"}`; publication only, returns canonical `applied_at_ns`; omitted ECU targets Engine |
-| `GET /api/runs` | Up to 64 complete, verified server-style UUID recordings |
+| `GET /api/runs` | Up to 64 complete, verified server-style UUID recordings. Each entry includes `id`, `duration_ns`, and `scenario_name` when the recording has scenario metadata. |
 | `GET /api/runs/{id}/playback?until_ns=N` | Bounded display snapshot through N (default: recorded end); verified saved events only |
 | `POST /api/runs/{id}/rerun` | Fresh computation with recording compatibility and integrity checks |
 

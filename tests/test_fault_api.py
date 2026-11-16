@@ -136,6 +136,12 @@ def test_rest_catalog_validation_quota_stopped_run_and_reset(tmp_path: Path) -> 
         preserved = client.get(new_base + "/state").json()
         assert preserved["recording"] == "saved"
         assert preserved["error"] is None
+        runs = {run["id"]: run for run in client.get("/api/runs").json()}
+        assert runs[reset["id"]] == {
+            "id": reset["id"],
+            "duration_ns": preserved["sim_time_ns"],
+            "scenario_name": "RPM spike",
+        }
 
 
 def test_guided_abs_demo_records_loss_recovery_and_replay_checkpoints(tmp_path: Path) -> None:

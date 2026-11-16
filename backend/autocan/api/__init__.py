@@ -300,7 +300,11 @@ def create_app(
                     continue
                 try:
                     meta = await asyncio.to_thread(verify_trace, path)
-                    results.append({"id": path.name, "duration_ns": meta["end_time_ns"]})
+                    run = {"id": path.name, "duration_ns": meta["end_time_ns"]}
+                    scenario = meta.get("scenario")
+                    if isinstance(scenario, dict):
+                        run["scenario_name"] = scenario["name"]
+                    results.append(run)
                 except (ValueError, OSError):
                     continue
         return results

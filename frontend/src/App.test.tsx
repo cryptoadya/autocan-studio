@@ -60,8 +60,12 @@ test('live controls become ready while the saved recording catalog is pending', 
   })
   render(<App />)
   await waitFor(() => expect(screen.getByRole('button', {name: 'Run demo'})).toBeEnabled())
-  resolveRuns(Response.json([{id: saved.id, duration_ns: saved.duration_ns}]))
-  expect(await screen.findByRole('option', {name: 'saved-ru · 1.00 s'})).toBeInTheDocument()
+  resolveRuns(Response.json([
+    {id: saved.id, duration_ns: saved.duration_ns},
+    {id: 'named-scenario', duration_ns: 12e9, scenario_name: 'ABS signal loss · guided demo'},
+  ]))
+  expect(await screen.findByRole('option', {name: 'Untitled run · 1.00 s · saved-ru'})).toBeInTheDocument()
+  expect(screen.getByRole('option', {name: 'ABS signal loss · guided demo · 12.00 s · named-sc'})).toHaveValue('named-scenario')
 })
 
 test.each(['response', 'error'])('returning to live ignores a late playback %s', async outcome => {
@@ -159,6 +163,7 @@ test('guided demo starts and opens recorded checkpoints even while the catalog i
   expect(await guide.findByText('TIMEOUT')).toBeVisible()
   expect(screen.getByText('PLAYBACK', {selector: '.mode'})).toBeVisible()
   expect(screen.getByRole('combobox', {name: 'Saved recording'})).toHaveValue('guided-run')
+  expect(screen.getByRole('option', {name: 'ABS signal loss · 12.00 s · guided-r'})).toBeInTheDocument()
   expect(screen.getByRole('button', {name: 'Deterministic rerun'})).toBeEnabled()
   await user.click(guide.getByRole('button', {name: /Before outage/}))
   await waitFor(() => expect(useStudio.getState().playback?.sim_time_ns).toBe(2e9))

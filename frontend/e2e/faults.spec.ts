@@ -20,7 +20,7 @@ for (const scenario of ['abs_missing_frames', 'rpm_spike', 'timing_jitter']) {
     expect(session.scenario.id).toBe(scenario)
     expect(session.sim_time_ns).toBe(session.scenario.duration_ns)
     expect(session.stopped).toBe(true)
-    await expect(page.getByLabel('Saved recording').locator(`option[value="${session.id}"]`)).toHaveCount(1)
+    await expect(page.getByLabel('Saved recording').locator(`option[value="${session.id}"]`)).toContainText(session.scenario.name)
     await page.getByLabel('Saved recording').selectOption(session.id)
     await page.getByRole('button', {name: 'Load playback', exact: true}).click()
     const time = scenario === 'abs_missing_frames' ? 400_000_000 : 150_000_000
